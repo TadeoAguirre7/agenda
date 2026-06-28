@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 
 export type Prioridad = "alta" | "media" | "baja";
 
@@ -52,15 +52,6 @@ export default function Agenda({ initial }: { initial: Task[] }) {
   const [hechasOpen, setHechasOpen] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
   const [editText, setEditText] = useState("");
-
-  const hoy = useMemo(() => {
-    const f = new Intl.DateTimeFormat("es-AR", {
-      weekday: "long",
-      day: "numeric",
-      month: "long",
-    }).format(new Date());
-    return f;
-  }, []);
 
   function tieneFecha(t: Task): boolean {
     return Boolean(t.fechaVencimiento || t.recordatorioAt);
@@ -118,17 +109,7 @@ export default function Agenda({ initial }: { initial: Task[] }) {
   }
 
   return (
-    <main className="mx-auto max-w-2xl px-5 pb-24 pt-10 sm:px-8 sm:pt-16">
-      {/* Masthead */}
-      <header className="mb-10 flex items-end justify-between border-b border-rule pb-5">
-        <span className="font-mono text-xs uppercase tracking-[0.25em] text-faint">
-          bitácora
-        </span>
-        <h1 className="font-display text-4xl leading-none text-ink first-letter:capitalize sm:text-5xl">
-          {hoy}
-        </h1>
-      </header>
-
+    <main className="mx-auto max-w-2xl px-5 pb-24 pt-6 sm:px-8 sm:pt-10">
       {/* Composer */}
       <section className="mb-12">
         <div className="flex items-center gap-3 border-b border-ink/80 pb-2">
