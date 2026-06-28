@@ -1,0 +1,32 @@
+// Prisma schema — Agenda
+// docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model Task {
+  id               String    @id @default(cuid())
+  titulo           String
+  descripcion      String?
+  prioridad        String    @default("media") // "alta" | "media" | "baja"
+  fechaVencimiento DateTime?
+  recordatorioAt   DateTime?
+  notificado       Boolean   @default(false)
+  completada       Boolean   @default(false)
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+}
+
+model PushSubscription {
+  id        String   @id @default(cuid())
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  createdAt DateTime @default(now())
+}
