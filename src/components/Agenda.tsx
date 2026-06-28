@@ -296,12 +296,14 @@ export default function Agenda({ initial }: { initial: Task[] }) {
             {porAgendar.map((t) => (
               <li
                 key={t.id}
-                className="group flex items-center gap-3 py-2"
+                className="group flex items-center gap-3 border-l-2 py-2 pl-4"
+                style={{ borderColor: META[t.prioridad].color }}
               >
                 <button
                   aria-label="Completar"
                   onClick={() => patch(t.id, { completada: true })}
-                  className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-faint/50 transition hover:border-ink"
+                  className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full border transition hover:border-ink"
+                  style={{ borderColor: `${META[t.prioridad].color}90` }}
                 />
 
                 {editId === t.id ? (
