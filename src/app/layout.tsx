@@ -1,6 +1,7 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono, Instrument_Serif } from "next/font/google";
 import "./globals.css";
+import ServiceWorkerRegister from "@/components/ServiceWorkerRegister";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -21,6 +22,20 @@ const instrumentSerif = Instrument_Serif({
 export const metadata: Metadata = {
   title: "Bitácora",
   description: "Tu agenda personal de tareas y recordatorios",
+  manifest: "/manifest.json",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "Bitácora",
+  },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#17191a",
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
 };
 
 export default function RootLayout({
@@ -33,7 +48,13 @@ export default function RootLayout({
       lang="es"
       className={`${geistSans.variable} ${geistMono.variable} ${instrumentSerif.variable} h-full antialiased`}
     >
-      <body className="min-h-full">{children}</body>
+      <head>
+        <link rel="apple-touch-icon" href="/icon-192x192.png" />
+      </head>
+      <body className="min-h-full">
+        {children}
+        <ServiceWorkerRegister />
+      </body>
     </html>
   );
 }

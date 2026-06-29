@@ -1,16 +1,15 @@
 import { PrismaClient } from "@/generated/prisma/client";
-import { PrismaBetterSqlite3 } from "@prisma/adapter-better-sqlite3";
+import { PrismaPg } from "@prisma/adapter-pg";
+import { Pool } from "pg";
 
-// Prisma 7 usa driver adapters. SQLite via better-sqlite3.
 // Singleton para evitar múltiples instancias en hot-reload de dev.
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined;
 };
 
 function makeClient() {
-  const adapter = new PrismaBetterSqlite3({
-    url: process.env.DATABASE_URL ?? "file:./dev.db",
-  });
+  const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+  const adapter = new PrismaPg(pool);
   return new PrismaClient({ adapter });
 }
 
