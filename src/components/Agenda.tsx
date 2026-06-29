@@ -67,6 +67,21 @@ export default function Agenda({ initial }: { initial: Task[] }) {
   async function crear() {
     const t = titulo.trim();
     if (!t) return;
+    const tempId = "local-" + Date.now();
+    const optimista: Task = {
+      id: tempId,
+      titulo: t,
+      descripcion: null,
+      prioridad,
+      fechaVencimiento: null,
+      recordatorioAt: recordatorio || null,
+      completada: false,
+    };
+    setTasks((prev) => [optimista, ...prev]);
+    setTitulo("");
+    setRecordatorio("");
+    setAbierto(false);
+
     const res = await fetch("/api/tasks", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -76,12 +91,15 @@ export default function Agenda({ initial }: { initial: Task[] }) {
         recordatorioAt: recordatorio || null,
       }),
     });
-    if (!res.ok) return;
-    const nueva = (await res.json()) as Task;
-    setTasks((prev) => [normalize(nueva), ...prev]);
-    setTitulo("");
-    setRecordatorio("");
-    setAbierto(false);
+
+    if (res.ok) {
+      const data = await res.json();
+      if (!data.offline) {
+        setTasks((prev) =>
+          prev.map((task) => (task.id === tempId ? normalize(data) : task)),
+        );
+      }
+    }
   }
 
   async function patch(id: string, data: Partial<Task>) {

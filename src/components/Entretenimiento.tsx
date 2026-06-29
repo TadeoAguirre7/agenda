@@ -41,15 +41,30 @@ export default function Entretenimiento({
   async function crear() {
     const t = titulo.trim();
     if (!t) return;
+    const tempId = "local-" + Date.now();
+    const optimista: EntertainmentItem = {
+      id: tempId,
+      titulo: t,
+      categoria,
+      completada: false,
+    };
+    setItems((prev) => [optimista, ...prev]);
+    setTitulo("");
+
     const res = await fetch("/api/entertainment", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ titulo: t, categoria }),
     });
-    if (!res.ok) return;
-    const nuevo = (await res.json()) as EntertainmentItem;
-    setItems((prev) => [nuevo, ...prev]);
-    setTitulo("");
+
+    if (res.ok) {
+      const data = await res.json();
+      if (!data.offline) {
+        setItems((prev) =>
+          prev.map((item) => (item.id === tempId ? data : item)),
+        );
+      }
+    }
   }
 
   async function patch(id: string, data: Partial<EntertainmentItem>) {
