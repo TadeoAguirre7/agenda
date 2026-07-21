@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import Agenda, { type Task } from "@/components/Agenda";
 import Entretenimiento, { type EntertainmentItem } from "@/components/Entretenimiento";
+import Restaurantes, { type RestaurantItem } from "@/components/Restaurantes";
 import TabsManager from "@/components/TabsManager";
 import { SignInButton, SignOutButton } from "@/components/AuthButtons";
 
@@ -55,6 +56,18 @@ export default async function Home() {
     completada: i.completada,
   }));
 
+  const restaurantRows = await prisma.restaurantItem.findMany({
+    where: { userId },
+    orderBy: { createdAt: "desc" },
+  });
+
+  const restaurantItems: RestaurantItem[] = restaurantRows.map((i) => ({
+    id: i.id,
+    titulo: i.titulo,
+    categoria: i.categoria as RestaurantItem["categoria"],
+    completada: i.completada,
+  }));
+
   return (
     <div>
       <TabsManager />
@@ -73,6 +86,12 @@ export default async function Home() {
                 className="rounded-full px-4 py-1.5 font-mono text-xs uppercase tracking-wider transition hover:bg-ink/5"
               >
                 Entretenimiento
+              </button>
+              <button
+                data-tab="restaurants"
+                className="rounded-full px-4 py-1.5 font-mono text-xs uppercase tracking-wider transition hover:bg-ink/5"
+              >
+                Gastronomía
               </button>
             </nav>
             <div className="flex items-center gap-3">
@@ -94,6 +113,9 @@ export default async function Home() {
       </div>
       <div data-content="entertainment" className="hidden">
         <Entretenimiento initial={entertainmentItems} />
+      </div>
+      <div data-content="restaurants" className="hidden">
+        <Restaurantes initial={restaurantItems} />
       </div>
     </div>
   );

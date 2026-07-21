@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 
-type Tab = "todo" | "entertainment";
+type Tab = "todo" | "entertainment" | "restaurants";
 
 export default function TabsManager() {
   // El estado solo fija el CSS inicial; los clicks los maneja el script inline.
@@ -17,6 +17,9 @@ export default function TabsManager() {
         [data-content="entertainment"] {
           display: ${activeTab === "entertainment" ? "block" : "none"};
         }
+        [data-content="restaurants"] {
+          display: ${activeTab === "restaurants" ? "block" : "none"};
+        }
         [data-tab="todo"] {
           background: ${activeTab === "todo" ? "var(--ink)" : "transparent"};
           color: ${activeTab === "todo" ? "var(--paper)" : "var(--faint)"};
@@ -24,6 +27,10 @@ export default function TabsManager() {
         [data-tab="entertainment"] {
           background: ${activeTab === "entertainment" ? "var(--ink)" : "transparent"};
           color: ${activeTab === "entertainment" ? "var(--paper)" : "var(--faint)"};
+        }
+        [data-tab="restaurants"] {
+          background: ${activeTab === "restaurants" ? "var(--ink)" : "transparent"};
+          color: ${activeTab === "restaurants" ? "var(--paper)" : "var(--faint)"};
         }
       `}</style>
       <script
