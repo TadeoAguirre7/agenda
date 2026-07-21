@@ -119,7 +119,7 @@ export default function Restaurantes({
   }
 
   return (
-    <main className="mx-auto max-w-2xl px-5 pb-24 pt-10 sm:px-8 sm:pt-16">
+    <main className="mx-auto max-w-2xl px-10 pb-24 pt-10 sm:pt-16">
       <section className="mb-12">
         <div className="flex items-center gap-3 border-b border-ink/80 pb-2">
           <input

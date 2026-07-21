@@ -4,8 +4,8 @@
   "description": "Tu agenda personal de tareas y recordatorios",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#fafaf7",
-  "theme_color": "#17191a",
+  "background_color": "#fcfbe9",
+  "theme_color": "#fcfbe9",
   "orientation": "portrait",
   "scope": "/",
   "icons": [

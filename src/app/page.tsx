@@ -15,7 +15,7 @@ export default async function Home() {
     return (
       <div className="flex min-h-screen items-center justify-center bg-paper px-5">
         <div className="w-full max-w-sm text-center">
-          <h1 className="mb-2 font-serif text-3xl italic text-ink">
+          <h1 className="mb-2 font-display text-6xl text-ink">
             Bitácora
           </h1>
           <p className="mb-8 font-mono text-xs uppercase tracking-wider text-faint">
@@ -77,7 +77,7 @@ export default async function Home() {
     <div>
       <TabsManager />
       <header className="sticky top-0 z-10 border-b border-rule bg-paper/95 backdrop-blur">
-        <div className="mx-auto max-w-2xl px-5 sm:px-8">
+        <div className="mx-auto max-w-2xl px-10">
           <div className="flex items-center justify-between py-3">
             <nav className="flex gap-1">
               <button
