@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { parseLista, csvALineas } from "@/lib/parse-list";
 
 export type Categoria = "pelis" | "series" | "musica" | "libros";
 
@@ -34,6 +35,9 @@ export default function Entretenimiento({
     musica: false,
     libros: false,
   });
+  const [importOpen, setImportOpen] = useState(false);
+  const [importTexto, setImportTexto] = useState("");
+  const [importCategoria, setImportCategoria] = useState<Categoria>("pelis");
 
   const pendientes = items.filter((i) => !i.completada);
   const hechas = items.filter((i) => i.completada);
@@ -83,6 +87,37 @@ export default function Entretenimiento({
     await fetch(`/api/entertainment/${id}`, { method: "DELETE" });
   }
 
+  async function importar() {
+    const titulos = parseLista(importTexto);
+    if (titulos.length === 0) return;
+    const tempItems: EntertainmentItem[] = titulos.map((t, i) => ({
+      id: `local-${Date.now()}-${i}`,
+      titulo: t,
+      categoria: importCategoria,
+      completada: false,
+    }));
+    setItems((prev) => [...tempItems, ...prev]);
+    setImportTexto("");
+    setImportOpen(false);
+
+    const res = await fetch("/api/entertainment/import", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ categoria: importCategoria, titulos }),
+    });
+
+    if (res.ok) {
+      const data = await res.json();
+      if (!data.offline && Array.isArray(data)) {
+        const tempIds = new Set(tempItems.map((t) => t.id));
+        setItems((prev) => [
+          ...data,
+          ...prev.filter((i) => !tempIds.has(i.id)),
+        ]);
+      }
+    }
+  }
+
   return (
     <main className="mx-auto max-w-2xl px-5 pb-24 pt-10 sm:px-8 sm:pt-16">
       <section className="mb-12">
@@ -125,7 +160,85 @@ export default function Entretenimiento({
               </button>
             );
           })}
+
+          <button
+            onClick={() => {
+              setImportCategoria(categoria);
+              setImportOpen((v) => !v);
+            }}
+            className="ml-auto font-mono text-xs uppercase tracking-wider text-faint underline-offset-4 hover:underline"
+          >
+            {importOpen ? "− importar" : "+ importar"}
+          </button>
         </div>
+
+        {importOpen && (
+          <div className="mt-3 rounded-md border border-rule bg-panel p-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="font-mono text-[10px] uppercase tracking-wider text-faint">
+                importar a
+              </span>
+              {CATEGORIAS.map((c) => {
+                const on = importCategoria === c;
+                return (
+                  <button
+                    key={c}
+                    onClick={() => setImportCategoria(c)}
+                    className="rounded-full border px-2.5 py-0.5 font-mono text-[10px] uppercase tracking-wider transition"
+                    style={{
+                      borderColor: on ? META[c].color : "var(--rule)",
+                      color: on ? META[c].color : "var(--faint)",
+                      background: on ? `${META[c].color}12` : "transparent",
+                    }}
+                  >
+                    {META[c].label}
+                  </button>
+                );
+              })}
+            </div>
+
+            <textarea
+              rows={6}
+              value={importTexto}
+              onChange={(e) => setImportTexto(e.target.value)}
+              placeholder="Pegá la lista acá, un item por línea…"
+              className="mt-2 w-full rounded-md border border-rule bg-paper px-3 py-2 font-sans text-sm text-ink outline-none placeholder:text-faint/60 focus:border-ink"
+            />
+
+            <div className="mt-2 flex flex-wrap items-center gap-3">
+              <label className="cursor-pointer font-mono text-xs uppercase tracking-wider text-faint underline-offset-4 hover:underline">
+                elegir archivo
+                <input
+                  type="file"
+                  accept=".txt,.csv,.md,text/plain,text/csv"
+                  className="hidden"
+                  onChange={async (e) => {
+                    const f = e.target.files?.[0];
+                    if (!f) return;
+                    const contenido = await f.text();
+                    setImportTexto(
+                      f.name.toLowerCase().endsWith(".csv")
+                        ? csvALineas(contenido).join("\n")
+                        : contenido,
+                    );
+                    e.target.value = "";
+                  }}
+                />
+              </label>
+              <span className="font-mono text-xs text-faint">
+                {parseLista(importTexto).length.toString().padStart(2, "0")}{" "}
+                items
+              </span>
+              <button
+                onClick={importar}
+                disabled={parseLista(importTexto).length === 0}
+                className="ml-auto rounded-full bg-ink px-4 py-1.5 font-mono text-xs uppercase tracking-wider text-paper transition disabled:opacity-25"
+              >
+                Importar
+              </button>
+            </div>
+          </div>
+        )}
       </section>
 
       {CATEGORIAS.map((c) => {
