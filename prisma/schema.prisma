@@ -20,6 +20,11 @@ model Task {
   recordatorioAt   DateTime?
   notificado       Boolean   @default(false)
   completada       Boolean   @default(false)
+  hora             String? // "HH:MM" — hora opcional del día
+  recurrencia      String    @default("ninguna") // "ninguna" | "diaria" | "intervalo" | "semanal"
+  intervaloDias    Int? // cada X días (recurrencia = "intervalo")
+  diasSemana       String? // csv 0-6, 0=domingo (recurrencia = "semanal")
+  ultimaHechaDia   String? // "YYYY-MM-DD" de la última completación (recurrentes)
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
 

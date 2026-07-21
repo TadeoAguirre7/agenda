@@ -3,6 +3,8 @@ import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 
 const PRIORIDADES = ["alta", "media", "baja"] as const;
+const HORA_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
+const DIA_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 // PATCH /api/tasks/[id] — editar / completar
 export async function PATCH(
@@ -41,6 +43,14 @@ export async function PATCH(
       : null;
     // si se reprograma el recordatorio, volver a notificar
     data.notificado = false;
+  }
+  if ("hora" in body) {
+    data.hora = HORA_RE.test(body.hora ?? "") ? body.hora : null;
+  }
+  if ("ultimaHechaDia" in body) {
+    data.ultimaHechaDia = DIA_RE.test(body.ultimaHechaDia ?? "")
+      ? body.ultimaHechaDia
+      : null;
   }
 
   const task = await prisma.task.update({ where: { id }, data });

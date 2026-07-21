@@ -3,6 +3,7 @@
 import { useState } from "react";
 
 export type Prioridad = "alta" | "media" | "baja";
+export type Recurrencia = "ninguna" | "diaria" | "intervalo" | "semanal";
 
 export type Task = {
   id: string;
@@ -12,15 +13,55 @@ export type Task = {
   fechaVencimiento: string | null;
   recordatorioAt: string | null;
   completada: boolean;
+  hora: string | null;
+  recurrencia: Recurrencia;
+  intervaloDias: number | null;
+  diasSemana: string | null;
+  ultimaHechaDia: string | null;
 };
 
 const PRIORIDADES: Prioridad[] = ["alta", "media", "baja"];
+const RECURRENCIAS: Recurrencia[] = ["ninguna", "diaria", "intervalo", "semanal"];
 
 const META: Record<Prioridad, { label: string; color: string }> = {
   alta: { label: "Alta", color: "var(--alta)" },
   media: { label: "Media", color: "var(--media)" },
   baja: { label: "Baja", color: "var(--baja)" },
 };
+
+const DIAS_SEMANA = [
+  { n: 1, label: "Lu" },
+  { n: 2, label: "Ma" },
+  { n: 3, label: "Mi" },
+  { n: 4, label: "Ju" },
+  { n: 5, label: "Vi" },
+  { n: 6, label: "Sá" },
+  { n: 0, label: "Do" },
+];
+
+const DIA_LABEL: Record<number, string> = {
+  0: "do",
+  1: "lu",
+  2: "ma",
+  3: "mi",
+  4: "ju",
+  5: "vi",
+  6: "sá",
+};
+
+const pad = (n: number) => n.toString().padStart(2, "0");
+
+function diaStr(d: Date): string {
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+function diffDias(desde: string, hasta: string): number {
+  const [ya, ma, da] = desde.split("-").map(Number);
+  const [yb, mb, db] = hasta.split("-").map(Number);
+  return Math.round(
+    (Date.UTC(yb, mb - 1, db) - Date.UTC(ya, ma - 1, da)) / 86400000,
+  );
+}
 
 function fmtHora(iso: string | null): string | null {
   if (!iso) return null;
@@ -43,30 +84,116 @@ function fmtDiaCorto(iso: string | null): string | null {
   }).format(d);
 }
 
+// hora efectiva de la tarea: el campo hora o la del recordatorio
+function horaDe(t: Task): string | null {
+  if (t.hora) return t.hora;
+  return fmtHora(t.recordatorioAt);
+}
+
+// primero las que no tienen hora (orden actual), luego las que tienen, ascendente
+function ordenarPorHora(items: Task[]): Task[] {
+  const sin = items.filter((t) => !horaDe(t));
+  const con = items
+    .filter((t) => horaDe(t))
+    .sort((a, b) => horaDe(a)!.localeCompare(horaDe(b)!));
+  return [...sin, ...con];
+}
+
+function tocaHoy(t: Task, hoy: string, hoyDow: number): boolean {
+  switch (t.recurrencia) {
+    case "diaria":
+      return true;
+    case "semanal":
+      return (t.diasSemana ?? "").split(",").includes(String(hoyDow));
+    case "intervalo":
+      return (
+        !t.ultimaHechaDia ||
+        diffDias(t.ultimaHechaDia, hoy) >= (t.intervaloDias ?? 2)
+      );
+    default:
+      return false;
+  }
+}
+
+function hechaHoy(t: Task, hoy: string): boolean {
+  return t.ultimaHechaDia === hoy;
+}
+
+function labelRecurrencia(t: Task): string {
+  switch (t.recurrencia) {
+    case "diaria":
+      return "diaria";
+    case "intervalo":
+      return `cada ${t.intervaloDias}d`;
+    case "semanal":
+      return (t.diasSemana ?? "")
+        .split(",")
+        .filter(Boolean)
+        .map((d) => DIA_LABEL[Number(d)])
+        .join("·");
+    default:
+      return "";
+  }
+}
+
 export default function Agenda({ initial }: { initial: Task[] }) {
   const [tasks, setTasks] = useState<Task[]>(initial);
   const [titulo, setTitulo] = useState("");
   const [prioridad, setPrioridad] = useState<Prioridad>("media");
   const [recordatorio, setRecordatorio] = useState("");
   const [abierto, setAbierto] = useState(false);
+  const [repetirOpen, setRepetirOpen] = useState(false);
+  const [recurrencia, setRecurrencia] = useState<Recurrencia>("ninguna");
+  const [intervaloDias, setIntervaloDias] = useState(2);
+  const [diasSel, setDiasSel] = useState<number[]>([]);
+  const [horaOpen, setHoraOpen] = useState(false);
+  const [hora, setHora] = useState("");
   const [hechasOpen, setHechasOpen] = useState(false);
+  const [noTocanOpen, setNoTocanOpen] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
   const [editText, setEditText] = useState("");
+  const [scheduleId, setScheduleId] = useState<string | null>(null);
+  const [scheduleDate, setScheduleDate] = useState("");
+
+  const hoyDate = new Date();
+  const hoy = diaStr(hoyDate);
+  const hoyDow = hoyDate.getDay();
+
+  const esRecurrenteActiva = recurrencia !== "ninguna";
+
+  function esRecurrente(t: Task): boolean {
+    return t.recurrencia !== "ninguna";
+  }
 
   function tieneFecha(t: Task): boolean {
     return Boolean(t.fechaVencimiento || t.recordatorioAt);
   }
 
-  const agendadas = tasks.filter((t) => !t.completada && tieneFecha(t));
-  const porAgendar = tasks.filter((t) => !t.completada && !tieneFecha(t));
+  const recurrentes = tasks.filter((t) => !t.completada && esRecurrente(t));
+  const recHechasHoy = recurrentes.filter((t) => hechaHoy(t, hoy));
+  const recPendientesHoy = ordenarPorHora(
+    recurrentes.filter((t) => tocaHoy(t, hoy, hoyDow) && !hechaHoy(t, hoy)),
+  );
+  const recNoTocan = recurrentes.filter(
+    (t) => !tocaHoy(t, hoy, hoyDow) && !hechaHoy(t, hoy),
+  );
+
+  const agendadas = tasks.filter(
+    (t) => !t.completada && !esRecurrente(t) && tieneFecha(t),
+  );
+  const porAgendar = ordenarPorHora(
+    tasks.filter((t) => !t.completada && !esRecurrente(t) && !tieneFecha(t)),
+  );
   const hechas = tasks.filter((t) => t.completada);
 
-  const [scheduleId, setScheduleId] = useState<string | null>(null);
-  const [scheduleDate, setScheduleDate] = useState("");
+  const anotarDisabled =
+    !titulo.trim() || (recurrencia === "semanal" && diasSel.length === 0);
 
   async function crear() {
     const t = titulo.trim();
     if (!t) return;
+    if (recurrencia === "semanal" && diasSel.length === 0) return;
+
     const tempId = "local-" + Date.now();
     const optimista: Task = {
       id: tempId,
@@ -74,13 +201,30 @@ export default function Agenda({ initial }: { initial: Task[] }) {
       descripcion: null,
       prioridad,
       fechaVencimiento: null,
-      recordatorioAt: recordatorio || null,
+      recordatorioAt: esRecurrenteActiva ? null : recordatorio || null,
       completada: false,
+      hora: hora || null,
+      recurrencia,
+      intervaloDias: recurrencia === "intervalo" ? intervaloDias : null,
+      diasSemana:
+        recurrencia === "semanal"
+          ? diasSel
+              .slice()
+              .sort((a, b) => a - b)
+              .join(",")
+          : null,
+      ultimaHechaDia: null,
     };
     setTasks((prev) => [optimista, ...prev]);
     setTitulo("");
     setRecordatorio("");
     setAbierto(false);
+    setRepetirOpen(false);
+    setRecurrencia("ninguna");
+    setIntervaloDias(2);
+    setDiasSel([]);
+    setHoraOpen(false);
+    setHora("");
 
     const res = await fetch("/api/tasks", {
       method: "POST",
@@ -88,7 +232,11 @@ export default function Agenda({ initial }: { initial: Task[] }) {
       body: JSON.stringify({
         titulo: t,
         prioridad,
-        recordatorioAt: recordatorio || null,
+        recordatorioAt: optimista.recordatorioAt,
+        hora: optimista.hora,
+        recurrencia: optimista.recurrencia,
+        intervaloDias: optimista.intervaloDias,
+        diasSemana: optimista.diasSemana,
       }),
     });
 
@@ -126,6 +274,47 @@ export default function Agenda({ initial }: { initial: Task[] }) {
     setEditText("");
   }
 
+  function renderEditable(t: Task) {
+    if (editId === t.id) {
+      return (
+        <input
+          autoFocus
+          value={editText}
+          onChange={(e) => setEditText(e.target.value)}
+          onBlur={guardarEdicion}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") guardarEdicion();
+            if (e.key === "Escape") setEditId(null);
+          }}
+          className="w-full border-b border-ink bg-transparent text-ink outline-none"
+        />
+      );
+    }
+    return (
+      <span
+        className="flex-1 cursor-text text-ink"
+        onClick={() => {
+          setEditId(t.id);
+          setEditText(t.titulo);
+        }}
+      >
+        {t.titulo}
+      </span>
+    );
+  }
+
+  function renderBorrar(t: Task) {
+    return (
+      <button
+        aria-label="Borrar"
+        onClick={() => borrar(t.id)}
+        className="shrink-0 font-mono text-xs text-faint opacity-0 transition hover:text-alta group-hover:opacity-100"
+      >
+        ✕
+      </button>
+    );
+  }
+
   return (
     <main className="mx-auto max-w-2xl px-5 pb-24 pt-6 sm:px-8 sm:pt-10">
       {/* Composer */}
@@ -140,7 +329,7 @@ export default function Agenda({ initial }: { initial: Task[] }) {
           />
           <button
             onClick={crear}
-            disabled={!titulo.trim()}
+            disabled={anotarDisabled}
             className="shrink-0 rounded-full bg-ink px-4 py-1.5 font-mono text-xs uppercase tracking-wider text-paper transition disabled:opacity-25"
           >
             Anotar
@@ -170,12 +359,30 @@ export default function Agenda({ initial }: { initial: Task[] }) {
             );
           })}
 
-          <button
-            onClick={() => setAbierto((v) => !v)}
-            className="ml-auto font-mono text-xs uppercase tracking-wider text-faint underline-offset-4 hover:underline"
-          >
-            {abierto ? "− recordatorio" : "+ recordatorio"}
-          </button>
+          <div className="ml-auto flex items-center gap-3">
+            {!esRecurrenteActiva && (
+              <button
+                onClick={() => setAbierto((v) => !v)}
+                className="font-mono text-xs uppercase tracking-wider text-faint underline-offset-4 hover:underline"
+              >
+                {abierto ? "− recordatorio" : "+ recordatorio"}
+              </button>
+            )}
+            {!abierto && (
+              <button
+                onClick={() => setRepetirOpen((v) => !v)}
+                className="font-mono text-xs uppercase tracking-wider text-faint underline-offset-4 hover:underline"
+              >
+                {repetirOpen ? "− repetir" : "+ repetir"}
+              </button>
+            )}
+            <button
+              onClick={() => setHoraOpen((v) => !v)}
+              className="font-mono text-xs uppercase tracking-wider text-faint underline-offset-4 hover:underline"
+            >
+              {horaOpen ? "− hora" : "+ hora"}
+            </button>
+          </div>
         </div>
 
         {abierto && (
@@ -191,11 +398,216 @@ export default function Agenda({ initial }: { initial: Task[] }) {
             />
           </div>
         )}
+
+        {repetirOpen && (
+          <div className="mt-3">
+            <label className="block font-mono text-[10px] uppercase tracking-wider text-faint">
+              repetir
+            </label>
+            <div className="mt-1 flex flex-wrap items-center gap-2">
+              {(
+                [
+                  { r: "diaria" as Recurrencia, label: "Todos los días" },
+                  { r: "intervalo" as Recurrencia, label: "Cada X días" },
+                  { r: "semanal" as Recurrencia, label: "Días de la semana" },
+                ]
+              ).map(({ r, label }) => {
+                const on = recurrencia === r;
+                return (
+                  <button
+                    key={r}
+                    onClick={() => setRecurrencia(on ? "ninguna" : r)}
+                    className="rounded-full border px-3 py-1 font-mono text-xs uppercase tracking-wider transition"
+                    style={{
+                      borderColor: on ? "var(--ink)" : "var(--rule)",
+                      color: on ? "var(--paper)" : "var(--faint)",
+                      background: on ? "var(--ink)" : "transparent",
+                    }}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
+
+            {recurrencia === "intervalo" && (
+              <div className="mt-2 flex items-center gap-2 font-mono text-xs text-faint">
+                <span>cada</span>
+                <input
+                  type="number"
+                  min={2}
+                  max={365}
+                  value={intervaloDias}
+                  onChange={(e) => {
+                    const n = parseInt(e.target.value, 10);
+                    if (!Number.isNaN(n)) {
+                      setIntervaloDias(Math.min(365, Math.max(2, n)));
+                    }
+                  }}
+                  className="w-16 rounded-md border border-rule bg-panel px-2 py-1 text-center text-ink outline-none focus:border-ink"
+                />
+                <span>días</span>
+              </div>
+            )}
+
+            {recurrencia === "semanal" && (
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {DIAS_SEMANA.map(({ n, label }) => {
+                  const on = diasSel.includes(n);
+                  return (
+                    <button
+                      key={n}
+                      onClick={() =>
+                        setDiasSel((prev) =>
+                          on ? prev.filter((d) => d !== n) : [...prev, n],
+                        )
+                      }
+                      className="rounded-full border px-2.5 py-1 font-mono text-xs uppercase tracking-wider transition"
+                      style={{
+                        borderColor: on ? "var(--ink)" : "var(--rule)",
+                        color: on ? "var(--paper)" : "var(--faint)",
+                        background: on ? "var(--ink)" : "transparent",
+                      }}
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
+        {horaOpen && (
+          <div className="mt-3">
+            <label className="block font-mono text-[10px] uppercase tracking-wider text-faint">
+              a las
+            </label>
+            <input
+              type="time"
+              value={hora}
+              onChange={(e) => setHora(e.target.value)}
+              className="mt-1 rounded-md border border-rule bg-panel px-3 py-1.5 font-mono text-sm text-ink outline-none focus:border-ink"
+            />
+          </div>
+        )}
       </section>
+
+      {/* Recurrentes */}
+      {recurrentes.length > 0 && (
+        <section className="mb-9 border-b border-rule pb-8">
+          <div className="mb-2 flex items-baseline gap-3">
+            <h2 className="font-mono text-xs uppercase tracking-[0.2em] text-ink">
+              Recurrentes
+            </h2>
+            <span className="font-mono text-xs text-faint">
+              {recPendientesHoy.length.toString().padStart(2, "0")}
+            </span>
+          </div>
+
+          {recPendientesHoy.length === 0 && recHechasHoy.length === 0 ? (
+            <p className="pl-4 font-sans text-sm text-faint/60">
+              nada para hoy
+            </p>
+          ) : (
+            <ul className="space-y-px">
+              {recPendientesHoy.map((t) => (
+                <li
+                  key={t.id}
+                  className="group flex items-center gap-3 border-l-2 py-2 pl-4"
+                  style={{ borderColor: META[t.prioridad].color }}
+                >
+                  <button
+                    aria-label="Hecha hoy"
+                    onClick={() => patch(t.id, { ultimaHechaDia: hoy })}
+                    className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full border transition hover:border-ink"
+                    style={{ borderColor: `${META[t.prioridad].color}90` }}
+                  />
+                  {renderEditable(t)}
+                  <span className="shrink-0 font-mono text-[10px] uppercase tracking-wider text-faint">
+                    {labelRecurrencia(t)}
+                  </span>
+                  {horaDe(t) && (
+                    <span className="shrink-0 font-mono text-xs text-faint">
+                      {horaDe(t)}
+                    </span>
+                  )}
+                  {renderBorrar(t)}
+                </li>
+              ))}
+              {recHechasHoy.map((t) => (
+                <li
+                  key={t.id}
+                  className="group flex items-center gap-3 border-l-2 py-2 pl-4"
+                  style={{ borderColor: "var(--rule)" }}
+                >
+                  <button
+                    aria-label="Reabrir"
+                    onClick={() => patch(t.id, { ultimaHechaDia: null })}
+                    className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-ink text-[10px] text-paper"
+                  >
+                    ✓
+                  </button>
+                  <span className="flex-1 text-faint line-through">
+                    {t.titulo}
+                  </span>
+                  <span className="shrink-0 font-mono text-[10px] uppercase tracking-wider text-faint">
+                    {labelRecurrencia(t)}
+                  </span>
+                  {horaDe(t) && (
+                    <span className="shrink-0 font-mono text-xs text-faint">
+                      {horaDe(t)}
+                    </span>
+                  )}
+                  {renderBorrar(t)}
+                </li>
+              ))}
+            </ul>
+          )}
+
+          {recNoTocan.length > 0 && (
+            <div className="mt-3 pl-4">
+              <button
+                onClick={() => setNoTocanOpen((v) => !v)}
+                className="flex items-baseline gap-3 font-mono text-[10px] uppercase tracking-[0.2em] text-faint/70"
+              >
+                <span>No tocan hoy</span>
+                <span>{recNoTocan.length.toString().padStart(2, "0")}</span>
+                <span>{noTocanOpen ? "−" : "+"}</span>
+              </button>
+
+              {noTocanOpen && (
+                <ul className="mt-2 space-y-px">
+                  {recNoTocan.map((t) => (
+                    <li
+                      key={t.id}
+                      className="group flex items-center gap-3 py-1.5 opacity-60"
+                    >
+                      <span className="h-5 w-5 shrink-0 rounded-full border border-faint/30" />
+                      <span className="flex-1 text-faint">{t.titulo}</span>
+                      <span className="shrink-0 font-mono text-[10px] uppercase tracking-wider text-faint">
+                        {labelRecurrencia(t)}
+                      </span>
+                      {horaDe(t) && (
+                        <span className="shrink-0 font-mono text-xs text-faint">
+                          {horaDe(t)}
+                        </span>
+                      )}
+                      {renderBorrar(t)}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
+        </section>
+      )}
 
       {/* Grupos por prioridad */}
       {PRIORIDADES.map((p) => {
-        const items = agendadas.filter((t) => t.prioridad === p);
+        const items = ordenarPorHora(
+          agendadas.filter((t) => t.prioridad === p),
+        );
         return (
           <section key={p} className="mb-9">
             <div className="mb-2 flex items-baseline gap-3">
@@ -231,29 +643,7 @@ export default function Agenda({ initial }: { initial: Task[] }) {
                       style={{ borderColor: `${META[p].color}90` }}
                     />
 
-                    {editId === t.id ? (
-                      <input
-                        autoFocus
-                        value={editText}
-                        onChange={(e) => setEditText(e.target.value)}
-                        onBlur={guardarEdicion}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") guardarEdicion();
-                          if (e.key === "Escape") setEditId(null);
-                        }}
-                        className="w-full border-b border-ink bg-transparent text-ink outline-none"
-                      />
-                    ) : (
-                      <span
-                        className="flex-1 cursor-text text-ink"
-                        onClick={() => {
-                          setEditId(t.id);
-                          setEditText(t.titulo);
-                        }}
-                      >
-                        {t.titulo}
-                      </span>
-                    )}
+                    {renderEditable(t)}
 
                     {t.recordatorioAt && (
                       <span className="shrink-0 font-mono text-xs text-faint">
@@ -264,13 +654,13 @@ export default function Agenda({ initial }: { initial: Task[] }) {
                       </span>
                     )}
 
-                    <button
-                      aria-label="Borrar"
-                      onClick={() => borrar(t.id)}
-                      className="shrink-0 font-mono text-xs text-faint opacity-0 transition hover:text-alta group-hover:opacity-100"
-                    >
-                      ✕
-                    </button>
+                    {t.hora && !t.recordatorioAt && (
+                      <span className="shrink-0 font-mono text-xs text-faint">
+                        {t.hora}
+                      </span>
+                    )}
+
+                    {renderBorrar(t)}
                   </li>
                 ))}
               </ul>
@@ -305,27 +695,11 @@ export default function Agenda({ initial }: { initial: Task[] }) {
                   style={{ borderColor: `${META[t.prioridad].color}90` }}
                 />
 
-                {editId === t.id ? (
-                  <input
-                    autoFocus
-                    value={editText}
-                    onChange={(e) => setEditText(e.target.value)}
-                    onBlur={guardarEdicion}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") guardarEdicion();
-                      if (e.key === "Escape") setEditId(null);
-                    }}
-                    className="w-full border-b border-ink bg-transparent text-ink outline-none"
-                  />
-                ) : (
-                  <span
-                    className="flex-1 cursor-text text-ink"
-                    onClick={() => {
-                      setEditId(t.id);
-                      setEditText(t.titulo);
-                    }}
-                  >
-                    {t.titulo}
+                {renderEditable(t)}
+
+                {t.hora && (
+                  <span className="shrink-0 font-mono text-xs text-faint">
+                    {t.hora}
                   </span>
                 )}
 
@@ -371,13 +745,7 @@ export default function Agenda({ initial }: { initial: Task[] }) {
                   </button>
                 )}
 
-                <button
-                  aria-label="Borrar"
-                  onClick={() => borrar(t.id)}
-                  className="shrink-0 font-mono text-xs text-faint opacity-0 transition hover:text-alta group-hover:opacity-100"
-                >
-                  ✕
-                </button>
+                {renderBorrar(t)}
               </li>
             ))}
           </ul>
@@ -410,13 +778,7 @@ export default function Agenda({ initial }: { initial: Task[] }) {
                   <span className="flex-1 text-faint line-through">
                     {t.titulo}
                   </span>
-                  <button
-                    aria-label="Borrar"
-                    onClick={() => borrar(t.id)}
-                    className="shrink-0 font-mono text-xs text-faint opacity-0 transition hover:text-alta group-hover:opacity-100"
-                  >
-                    ✕
-                  </button>
+                  {renderBorrar(t)}
                 </li>
               ))}
             </ul>
@@ -430,8 +792,11 @@ export default function Agenda({ initial }: { initial: Task[] }) {
 function normalize(t: Task): Task {
   return {
     ...t,
-    prioridad: (["alta", "media", "baja"].includes(t.prioridad)
+    prioridad: (PRIORIDADES.includes(t.prioridad)
       ? t.prioridad
       : "media") as Prioridad,
+    recurrencia: (RECURRENCIAS.includes(t.recurrencia)
+      ? t.recurrencia
+      : "ninguna") as Recurrencia,
   };
 }

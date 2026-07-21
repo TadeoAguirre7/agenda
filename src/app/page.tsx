@@ -42,6 +42,11 @@ export default async function Home() {
     fechaVencimiento: t.fechaVencimiento?.toISOString() ?? null,
     recordatorioAt: t.recordatorioAt?.toISOString() ?? null,
     completada: t.completada,
+    hora: t.hora,
+    recurrencia: t.recurrencia as Task["recurrencia"],
+    intervaloDias: t.intervaloDias,
+    diasSemana: t.diasSemana,
+    ultimaHechaDia: t.ultimaHechaDia,
   }));
 
   const entertainmentRows = await prisma.entertainmentItem.findMany({
