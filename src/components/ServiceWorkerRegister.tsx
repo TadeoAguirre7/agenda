@@ -1,12 +1,41 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
+
+// Background Sync API (no esta en lib.dom de TypeScript)
+type RegistrationWithSync = ServiceWorkerRegistration & {
+  sync: { register: (tag: string) => Promise<void> };
+};
+
+function subscribeToOnlineStatus(callback: () => void) {
+  window.addEventListener("online", callback);
+  window.addEventListener("offline", callback);
+  return () => {
+    window.removeEventListener("online", callback);
+    window.removeEventListener("offline", callback);
+  };
+}
 
 export default function ServiceWorkerRegister() {
-  const [isOffline, setIsOffline] = useState(false);
   const [syncing, setSyncing] = useState(false);
+  const isOffline = useSyncExternalStore(
+    subscribeToOnlineStatus,
+    () => !navigator.onLine,
+    () => false,
+  );
 
   useEffect(() => {
+    // En desarrollo no registramos SW para evitar problemas con HMR y chunks
+    if (window.location.hostname === "localhost") {
+      navigator.serviceWorker
+        ?.getRegistrations()
+        ?.then((registrations) =>
+          registrations.forEach((r) => r.unregister()),
+        )
+        ?.catch(() => {});
+      return;
+    }
+
     // Registrar SW
     if ("serviceWorker" in navigator) {
       navigator.serviceWorker
@@ -16,7 +45,7 @@ export default function ServiceWorkerRegister() {
 
           // Solicitar background sync si esta disponible
           if ("SyncManager" in window) {
-            (registration as any).sync
+            (registration as RegistrationWithSync).sync
               .register("sync-pending")
               .catch(() => console.log("Background sync not granted"));
           }
@@ -29,30 +58,26 @@ export default function ServiceWorkerRegister() {
       navigator.serviceWorker.addEventListener("message", (event) => {
         if (event.data?.type === "SYNC_COMPLETE") {
           setSyncing(false);
-          // Recargar pagina para reflejar datos sincronizados
-          window.location.reload();
+          // Refrescar datos sin recargar toda la pagina
+          window.dispatchEvent(new CustomEvent("SYNC_COMPLETE"));
         }
       });
     }
 
-    // Detectar estado de conexion
+    // Al volver la conexion, avisar al SW que intente sincronizar
     const handleOnline = () => {
-      setIsOffline(false);
       setSyncing(true);
-      // Avisar al SW que intente sincronizar ahora
       if (navigator.serviceWorker.controller) {
         navigator.serviceWorker.controller.postMessage({ type: "SYNC_NOW" });
       }
     };
 
     const handleOffline = () => {
-      setIsOffline(true);
       setSyncing(false);
     };
 
     window.addEventListener("online", handleOnline);
     window.addEventListener("offline", handleOffline);
-    setIsOffline(!navigator.onLine);
 
     return () => {
       window.removeEventListener("online", handleOnline);

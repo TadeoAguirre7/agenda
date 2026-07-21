@@ -1,4 +1,4 @@
-const CACHE_NAME = "bitacora-v2";
+const CACHE_NAME = "bitacora-v3";
 const STATIC_ASSETS = [
   "/",
   "/manifest.json",
@@ -112,8 +112,8 @@ self.addEventListener("fetch", (event) => {
   const { request } = event;
   const url = new URL(request.url);
 
-  // API requests
-  if (url.pathname.startsWith(API_BASE)) {
+  // API requests (excepto auth de NextAuth)
+  if (url.pathname.startsWith(API_BASE) && !url.pathname.startsWith("/api/auth/")) {
     const isMutation = ["POST", "PATCH", "DELETE"].includes(request.method);
 
     if (isMutation) {
@@ -123,7 +123,7 @@ self.addEventListener("fetch", (event) => {
             const networkResponse = await fetch(request.clone());
             syncPendingRequests().catch(() => {});
             return networkResponse;
-          } catch (error) {
+          } catch {
             const body = await request.clone().text();
             const headers = {};
             request.headers.forEach((v, k) => { headers[k] = v; });
@@ -152,24 +152,33 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // Navegacion: cache-first
+  // No interceptar assets internos de Next.js (chunks, HMR, etc.)
+  if (url.pathname.startsWith("/_next/")) {
+    return;
+  }
+
+  // Navegacion: network-first para no servir paginas stale con auth
   if (request.mode === "navigate") {
     event.respondWith(
-      caches.match(request).then((cached) => {
-        return (
-          cached ||
-          fetch(request).then((response) => {
-            const clone = response.clone();
-            caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
-            return response;
-          })
-        );
-      }),
+      fetch(request)
+        .then((response) => {
+          const clone = response.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
+          return response;
+        })
+        .catch(() => {
+          return caches.match(request).then((cached) => {
+            return (
+              cached ||
+              new Response("Sin conexion", { status: 503 })
+            );
+          });
+        }),
     );
     return;
   }
 
-  // Assets: cache-first
+  // Assets estaticos: cache-first
   event.respondWith(
     caches.match(request).then((cached) => {
       return (

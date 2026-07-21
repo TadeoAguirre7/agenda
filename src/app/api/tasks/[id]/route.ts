@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { auth } from "@/lib/auth";
 
 const PRIORIDADES = ["alta", "media", "baja"] as const;
 
@@ -8,10 +9,20 @@ export async function PATCH(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  const session = await auth();
+  if (!session?.user?.id) {
+    return NextResponse.json({ error: "No autenticado" }, { status: 401 });
+  }
+
   const { id } = await params;
   const body = await req.json().catch(() => null);
   if (!body) {
     return NextResponse.json({ error: "body inválido" }, { status: 400 });
+  }
+
+  const existing = await prisma.task.findUnique({ where: { id } });
+  if (!existing || existing.userId !== session.user.id) {
+    return NextResponse.json({ error: "tarea no encontrada" }, { status: 404 });
   }
 
   const data: Record<string, unknown> = {};
@@ -32,12 +43,8 @@ export async function PATCH(
     data.notificado = false;
   }
 
-  try {
-    const task = await prisma.task.update({ where: { id }, data });
-    return NextResponse.json(task);
-  } catch {
-    return NextResponse.json({ error: "tarea no encontrada" }, { status: 404 });
-  }
+  const task = await prisma.task.update({ where: { id }, data });
+  return NextResponse.json(task);
 }
 
 // DELETE /api/tasks/[id] — borrar
@@ -45,11 +52,17 @@ export async function DELETE(
   _req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  const session = await auth();
+  if (!session?.user?.id) {
+    return NextResponse.json({ error: "No autenticado" }, { status: 401 });
+  }
+
   const { id } = await params;
-  try {
-    await prisma.task.delete({ where: { id } });
-    return NextResponse.json({ ok: true });
-  } catch {
+  const existing = await prisma.task.findUnique({ where: { id } });
+  if (!existing || existing.userId !== session.user.id) {
     return NextResponse.json({ error: "tarea no encontrada" }, { status: 404 });
   }
+
+  await prisma.task.delete({ where: { id } });
+  return NextResponse.json({ ok: true });
 }

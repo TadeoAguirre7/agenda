@@ -5,7 +5,8 @@ import { useState } from "react";
 type Tab = "todo" | "entertainment";
 
 export default function TabsManager() {
-  const [activeTab, setActiveTab] = useState<Tab>("todo");
+  // El estado solo fija el CSS inicial; los clicks los maneja el script inline.
+  const [activeTab] = useState<Tab>("todo");
 
   return (
     <>

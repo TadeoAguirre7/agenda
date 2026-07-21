@@ -50,6 +50,17 @@ export default function RootLayout({
     >
       <head>
         <link rel="apple-touch-icon" href="/icon-192x192.png" />
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              if (typeof navigator !== 'undefined' && navigator.serviceWorker) {
+                navigator.serviceWorker.getRegistrations().then(function(regs) {
+                  regs.forEach(function(r) { r.unregister(); });
+                });
+              }
+            `,
+          }}
+        />
       </head>
       <body className="min-h-full">
         {children}

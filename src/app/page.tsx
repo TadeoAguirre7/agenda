@@ -1,12 +1,35 @@
 import { prisma } from "@/lib/prisma";
+import { auth } from "@/lib/auth";
 import Agenda, { type Task } from "@/components/Agenda";
 import Entretenimiento, { type EntertainmentItem } from "@/components/Entretenimiento";
 import TabsManager from "@/components/TabsManager";
+import { SignInButton, SignOutButton } from "@/components/AuthButtons";
 
 export const dynamic = "force-dynamic";
 
 export default async function Home() {
+  const session = await auth();
+
+  if (!session?.user?.id) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-paper px-5">
+        <div className="w-full max-w-sm text-center">
+          <h1 className="mb-2 font-serif text-3xl italic text-ink">
+            Bitácora
+          </h1>
+          <p className="mb-8 font-mono text-xs uppercase tracking-wider text-faint">
+            Inicia sesión para acceder a tu agenda
+          </p>
+          <SignInButton />
+        </div>
+      </div>
+    );
+  }
+
+  const userId = session.user.id;
+
   const taskRows = await prisma.task.findMany({
+    where: { userId },
     orderBy: { createdAt: "desc" },
   });
 
@@ -21,6 +44,7 @@ export default async function Home() {
   }));
 
   const entertainmentRows = await prisma.entertainmentItem.findMany({
+    where: { userId },
     orderBy: { createdAt: "desc" },
   });
 
@@ -51,13 +75,16 @@ export default async function Home() {
                 Entretenimiento
               </button>
             </nav>
-            <span className="font-mono text-xs uppercase tracking-[0.25em] text-faint">
-              {new Intl.DateTimeFormat("es-AR", {
-                weekday: "short",
-                day: "numeric",
-                month: "short",
-              }).format(new Date())}
-            </span>
+            <div className="flex items-center gap-3">
+              <span className="font-mono text-xs uppercase tracking-[0.25em] text-faint">
+                {new Intl.DateTimeFormat("es-AR", {
+                  weekday: "short",
+                  day: "numeric",
+                  month: "short",
+                }).format(new Date())}
+              </span>
+              <SignOutButton title={session.user.email ?? ""} />
+            </div>
           </div>
         </div>
       </header>
