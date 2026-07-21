@@ -1,36 +1,59 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Bitácora — Agenda personal
 
-## Getting Started
+Agenda web de tareas y entretenimiento (pelis, series, música, libros). PWA instalable con soporte offline y login con Google.
 
-First, run the development server:
+**Producción:** https://agenda-inky-beta.vercel.app
+
+## Stack
+
+- **Next.js 16** (App Router) + React 19 + TypeScript
+- **Tailwind CSS v4**
+- **Prisma 7** + PostgreSQL (Neon)
+- **NextAuth v4** con Google OAuth
+- **PWA**: service worker propio (`public/sw.js`) con cola offline en IndexedDB y background sync
+
+## Desarrollo local
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
+npx prisma migrate deploy   # aplica migraciones a la DB
+npm run dev                 # http://localhost:3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Variables de entorno (`.env`)
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+| Variable | Descripción |
+|---|---|
+| `DATABASE_URL` | Connection string de PostgreSQL (Neon) |
+| `NEXTAUTH_URL` | `http://localhost:3000` en local; URL de producción en Vercel |
+| `AUTH_SECRET` / `NEXTAUTH_SECRET` | Secreto para firmar JWTs (mismo valor en ambas) |
+| `AUTH_GOOGLE_ID` | Client ID de Google OAuth |
+| `AUTH_GOOGLE_SECRET` | Client Secret de Google OAuth |
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+El OAuth Client de Google (Console → Credentials) debe tener estas redirect URIs:
 
-## Learn More
+```
+http://localhost:3000/api/auth/callback/google
+https://agenda-inky-beta.vercel.app/api/auth/callback/google
+```
 
-To learn more about Next.js, take a look at the following resources:
+## Deploy
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+El proyecto está conectado a GitHub: **cada push a `main` dispara un deploy automático en Vercel**.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Deploy manual (opcional):
 
-## Deploy on Vercel
+```bash
+vercel --prod
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+Las migraciones corren con `prisma migrate deploy` (script `start`); en Vercel el build corre `prisma generate` vía `postinstall`.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Scripts
+
+| Comando | Acción |
+|---|---|
+| `npm run dev` | Servidor de desarrollo |
+| `npm run build` | Build de producción |
+| `npm start` | Migra DB y arranca en producción |
+| `npm run lint` | ESLint |
