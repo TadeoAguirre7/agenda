@@ -62,6 +62,7 @@ function fmtHora(iso: string | null): string | null {
   return new Intl.DateTimeFormat("es-AR", {
     hour: "2-digit",
     minute: "2-digit",
+    hour12: false,
   }).format(d);
 }
 
@@ -122,6 +123,15 @@ function toLocalISO(isoDate: string, hm: string): string {
 function horaDe(t: Task): string | null {
   if (t.hora) return t.hora;
   return fmtHora(t.recordatorioAt);
+}
+
+// con hora primero, ordenadas de mas temprana a mas tarde; sin hora al final
+function ordenarPorHora(items: Task[]): Task[] {
+  const con = items
+    .filter((t) => horaDe(t))
+    .sort((a, b) => horaDe(a)!.localeCompare(horaDe(b)!));
+  const sin = items.filter((t) => !horaDe(t));
+  return [...con, ...sin];
 }
 
 function hechaHoy(t: Task, hoy: string): boolean {
@@ -203,8 +213,8 @@ export default function Agenda({
     return t.recurrencia !== "ninguna";
   }
 
-  const pendientes = tasks.filter((t) => !t.completada);
-  const hechas = tasks.filter((t) => t.completada);
+  const pendientes = ordenarPorHora(tasks.filter((t) => !t.completada));
+  const hechas = ordenarPorHora(tasks.filter((t) => t.completada));
 
   const fechaInvalida =
     recordatorioDia.trim() !== "" && !parseFecha(recordatorioDia);
