@@ -31,6 +31,12 @@ html {
   background: var(--paper);
 }
 
+/* sin scroll horizontal a nivel página (el header scrollea internamente) */
+html,
+body {
+  overflow-x: clip;
+}
+
 body {
   background: transparent;
   color: var(--ink);
@@ -48,6 +54,13 @@ body::before {
   inset: 0;
   z-index: -1;
   background: url("/background-stars.jpeg") center / cover no-repeat;
+}
+
+/* Mobile: atenuar el fondo para que las estrellas no tapen el texto */
+@media (max-width: 640px) {
+  body::before {
+    opacity: 0.35;
+  }
 }
 
 ::selection {

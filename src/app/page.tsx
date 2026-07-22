@@ -86,8 +86,8 @@ export default async function Home() {
       <TabsManager />
       <header className="sticky top-0 z-10 border-b border-rule bg-paper/95 backdrop-blur">
         <div className="mx-auto max-w-2xl px-5 sm:px-8">
-          <div className="flex items-center justify-between py-3">
-            <nav className="flex gap-1">
+          <div className="flex items-center justify-between gap-3 overflow-x-auto py-3">
+            <nav className="flex shrink-0 gap-1">
               <button
                 data-tab="todo"
                 className="rounded-full px-4 py-1.5 font-mono text-xs uppercase tracking-wider transition hover:bg-ink/5"
@@ -107,7 +107,7 @@ export default async function Home() {
                 Lugares
               </button>
             </nav>
-            <div className="flex items-center gap-3">
+            <div className="flex shrink-0 items-center gap-3">
               <span className="font-mono text-xs uppercase tracking-[0.25em] text-faint">
                 {new Intl.DateTimeFormat("es-AR", {
                   weekday: "short",
