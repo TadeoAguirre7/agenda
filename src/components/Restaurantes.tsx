@@ -2,8 +2,9 @@
 
 import { useState } from "react";
 import { parseLista, csvALineas } from "@/lib/parse-list";
+import ColorDot from "@/components/ColorDot";
 
-export type Categoria = "restaurantes" | "cafes" | "bares" | "dulces";
+export type Categoria = "restaurantes" | "cafes" | "museos" | "ferias";
 
 export type RestaurantItem = {
   id: string;
@@ -12,35 +13,43 @@ export type RestaurantItem = {
   completada: boolean;
 };
 
-const CATEGORIAS: Categoria[] = ["restaurantes", "cafes", "bares", "dulces"];
+const CATEGORIAS: Categoria[] = ["restaurantes", "cafes", "museos", "ferias"];
 
-const META: Record<Categoria, { label: string; color: string }> = {
+const DEFAULT_META: Record<Categoria, { label: string; color: string }> = {
   restaurantes: { label: "Restaurantes", color: "#3e4e72" },
   cafes: { label: "Cafés", color: "#5e7396" },
-  bares: { label: "Bares", color: "#8fa3c8" },
-  dulces: { label: "Dulces", color: "#b9c4d8" },
+  museos: { label: "Museos", color: "#8fa3c8" },
+  ferias: { label: "Ferias", color: "#b9c4d8" },
 };
 
 export default function Restaurantes({
   initial,
+  preferences,
 }: {
   initial: RestaurantItem[];
+  preferences?: Partial<Record<Categoria, string>>;
 }) {
+  const META: Record<Categoria, { label: string; color: string }> = {
+    restaurantes: { label: DEFAULT_META.restaurantes.label, color: preferences?.restaurantes ?? DEFAULT_META.restaurantes.color },
+    cafes: { label: DEFAULT_META.cafes.label, color: preferences?.cafes ?? DEFAULT_META.cafes.color },
+    museos: { label: DEFAULT_META.museos.label, color: preferences?.museos ?? DEFAULT_META.museos.color },
+    ferias: { label: DEFAULT_META.ferias.label, color: preferences?.ferias ?? DEFAULT_META.ferias.color },
+  };
+
   const [items, setItems] = useState<RestaurantItem[]>(initial);
   const [titulo, setTitulo] = useState("");
   const [categoria, setCategoria] = useState<Categoria>("restaurantes");
-  const [visitadosOpen, setVisitadosOpen] = useState<Record<Categoria, boolean>>({
-    restaurantes: false,
-    cafes: false,
-    bares: false,
-    dulces: false,
+  const [seccionesOpen, setSeccionesOpen] = useState<Record<Categoria, boolean>>({
+    restaurantes: true,
+    cafes: true,
+    museos: true,
+    ferias: true,
   });
   const [importOpen, setImportOpen] = useState(false);
   const [importTexto, setImportTexto] = useState("");
   const [importCategoria, setImportCategoria] = useState<Categoria>("restaurantes");
 
-  const pendientes = items.filter((i) => !i.completada);
-  const visitados = items.filter((i) => i.completada);
+  const visibles = items.filter((i) => !i.completada);
 
   async function crear() {
     const t = titulo.trim();
@@ -85,6 +94,18 @@ export default function Restaurantes({
   async function borrar(id: string) {
     setItems((prev) => prev.filter((i) => i.id !== id));
     await fetch(`/api/restaurants/${id}`, { method: "DELETE" });
+  }
+
+  async function guardarColor(c: Categoria, color: string) {
+    const res = await fetch("/api/user/preferences", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ restaurantColors: { [c]: color } }),
+    });
+    if (res.ok) {
+      META[c].color = color;
+      setItems((prev) => [...prev]);
+    }
   }
 
   async function importar() {
@@ -242,102 +263,66 @@ export default function Restaurantes({
       </section>
 
       {CATEGORIAS.map((c) => {
-        const pendientesCat = pendientes.filter((i) => i.categoria === c);
-        const visitadosCat = visitados.filter((i) => i.categoria === c);
-        const isOpen = visitadosOpen[c];
+        const catItems = visibles.filter((i) => i.categoria === c);
+        const isOpen = seccionesOpen[c];
 
         return (
           <section key={c} className="mb-9">
-            <div className="mb-2 flex items-baseline gap-3">
-              <h2
-                className="font-mono text-xs uppercase tracking-[0.2em]"
-                style={{ color: META[c].color }}
-              >
-                {META[c].label}
-              </h2>
-              <span className="font-mono text-xs text-faint">
-                {pendientesCat.length.toString().padStart(2, "0")}
+            <button
+              onClick={() =>
+                setSeccionesOpen((prev) => ({ ...prev, [c]: !prev[c] }))
+              }
+              className="mb-2 flex w-full items-baseline gap-3 font-mono text-xs uppercase tracking-[0.2em] transition hover:opacity-70"
+              style={{ color: META[c].color }}
+            >
+              <span>{META[c].label}</span>
+              <span>{catItems.length.toString().padStart(2, "0")}</span>
+              <span>{isOpen ? "−" : "+"}</span>
+              <span className="ml-auto">
+                <ColorDot
+                  color={META[c].color}
+                  onChange={(color) => guardarColor(c, color)}
+                  label={META[c].label}
+                />
               </span>
-            </div>
+            </button>
 
-            {pendientesCat.length === 0 ? (
-              <p className="pl-4 font-sans text-sm text-faint/60">
-                sin lugares
-              </p>
-            ) : (
-              <ul
-                className="space-y-px border-l-3 pl-4"
-                style={{ borderColor: META[c].color }}
-              >
-                {pendientesCat.map((i) => (
-                  <li
-                    key={i.id}
-                    className="group flex items-center gap-3 py-2"
-                  >
-                    <button
-                      aria-label="Marcar visitado"
-                      onClick={() => patch(i.id, { completada: true })}
-                      className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full border transition hover:border-ink"
-                      style={{ borderColor: `${META[c].color}90` }}
-                    />
-
-                    <span className="flex-1 text-ink">{i.titulo}</span>
-
-                    <button
-                      aria-label="Borrar"
-                      onClick={() => borrar(i.id)}
-                      className="shrink-0 font-mono text-xs text-faint opacity-0 transition hover:text-alta group-hover:opacity-100"
-                    >
-                      ✕
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
-
-            {visitadosCat.length > 0 && (
-              <div className="mt-4">
-                <button
-                  onClick={() =>
-                    setVisitadosOpen((prev) => ({ ...prev, [c]: !prev[c] }))
-                  }
-                  className="flex items-baseline gap-3 font-mono text-xs uppercase tracking-[0.2em] text-faint"
+            <div className={isOpen ? "block" : "hidden"}>
+              {catItems.length === 0 ? (
+                <p className="pl-4 font-sans text-sm text-faint/60">
+                  sin lugares
+                </p>
+              ) : (
+                <ul
+                  className="space-y-px border-l-3 pl-4"
+                  style={{ borderColor: META[c].color }}
                 >
-                  <span>Visitados</span>
-                  <span>{visitadosCat.length.toString().padStart(2, "0")}</span>
-                  <span>{isOpen ? "−" : "+"}</span>
-                </button>
+                  {catItems.map((i) => (
+                    <li
+                      key={i.id}
+                      className="group flex items-center gap-3 py-2"
+                    >
+                      <button
+                        aria-label="Marcar visitado"
+                        onClick={() => patch(i.id, { completada: true })}
+                        className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full border transition hover:border-ink"
+                        style={{ borderColor: `${META[c].color}90` }}
+                      />
 
-                {isOpen && (
-                  <ul className="mt-3 space-y-px">
-                    {visitadosCat.map((i) => (
-                      <li
-                        key={i.id}
-                        className="group flex items-center gap-3 py-1.5"
+                      <span className="flex-1 text-ink">{i.titulo}</span>
+
+                      <button
+                        aria-label="Borrar"
+                        onClick={() => borrar(i.id)}
+                        className="shrink-0 font-mono text-xs text-faint opacity-0 transition hover:text-alta group-hover:opacity-100"
                       >
-                        <button
-                          aria-label="Reabrir"
-                          onClick={() => patch(i.id, { completada: false })}
-                          className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-ink text-[10px] text-paper"
-                        >
-                          ✓
-                        </button>
-                        <span className="flex-1 text-faint line-through">
-                          {i.titulo}
-                        </span>
-                        <button
-                          aria-label="Borrar"
-                          onClick={() => borrar(i.id)}
-                          className="shrink-0 font-mono text-xs text-faint opacity-0 transition hover:text-alta group-hover:opacity-100"
-                        >
-                          ✕
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-            )}
+                        ✕
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
           </section>
         );
       })}

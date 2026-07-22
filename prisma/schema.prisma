@@ -55,7 +55,7 @@ model RestaurantItem {
   id         String   @id @default(cuid())
   userId     String?
   titulo     String
-  categoria  String   // "restaurantes" | "cafes" | "bares" | "dulces"
+  categoria  String   // "restaurantes" | "cafes" | "museos" | "ferias"
   completada Boolean  @default(false)
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
@@ -96,6 +96,7 @@ model User {
   email              String              @unique
   emailVerified      DateTime?
   image              String?
+  preferences        Json?
   accounts           Account[]
   sessions           Session[]
   tasks              Task[]

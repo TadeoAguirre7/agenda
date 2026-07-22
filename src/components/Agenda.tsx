@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import ColorDot from "@/components/ColorDot";
 
 export type Prioridad = "alta" | "media" | "baja";
 export type Recurrencia = "ninguna" | "diaria" | "intervalo" | "semanal";
@@ -23,7 +24,7 @@ export type Task = {
 const PRIORIDADES: Prioridad[] = ["alta", "media", "baja"];
 const RECURRENCIAS: Recurrencia[] = ["ninguna", "diaria", "intervalo", "semanal"];
 
-const META: Record<Prioridad, { label: string; color: string }> = {
+const DEFAULT_META: Record<Prioridad, { label: string; color: string }> = {
   alta: { label: "Alta", color: "var(--alta)" },
   media: { label: "Media", color: "var(--media)" },
   baja: { label: "Baja", color: "var(--baja)" },
@@ -136,7 +137,19 @@ function labelRecurrencia(t: Task): string {
   }
 }
 
-export default function Agenda({ initial }: { initial: Task[] }) {
+export default function Agenda({
+  initial,
+  preferences,
+}: {
+  initial: Task[];
+  preferences?: Partial<Record<Prioridad, string>>;
+}) {
+  const META: Record<Prioridad, { label: string; color: string }> = {
+    alta: { label: "Alta", color: preferences?.alta ?? DEFAULT_META.alta.color },
+    media: { label: "Media", color: preferences?.media ?? DEFAULT_META.media.color },
+    baja: { label: "Baja", color: preferences?.baja ?? DEFAULT_META.baja.color },
+  };
+
   const [tasks, setTasks] = useState<Task[]>(initial);
   const [titulo, setTitulo] = useState("");
   const [prioridad, setPrioridad] = useState<Prioridad>("media");
@@ -150,6 +163,25 @@ export default function Agenda({ initial }: { initial: Task[] }) {
   const [hora, setHora] = useState("");
   const [hechasOpen, setHechasOpen] = useState(false);
   const [noTocanOpen, setNoTocanOpen] = useState(false);
+  const [seccionesOpen, setSeccionesOpen] = useState({
+    recurrentes: true,
+    alta: true,
+    media: true,
+    baja: true,
+    porAgendar: true,
+  });
+
+  async function guardarColor(prioridad: Prioridad, color: string) {
+    const res = await fetch("/api/user/preferences", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ taskColors: { [prioridad]: color } }),
+    });
+    if (res.ok) {
+      META[prioridad].color = color;
+      setTasks((prev) => [...prev]);
+    }
+  }
   const [editId, setEditId] = useState<string | null>(null);
   const [editText, setEditText] = useState("");
   const [scheduleId, setScheduleId] = useState<string | null>(null);
@@ -496,14 +528,17 @@ export default function Agenda({ initial }: { initial: Task[] }) {
       {/* Recurrentes */}
       {recurrentes.length > 0 && (
         <section className="mb-9 border-b border-rule pb-8">
-          <div className="mb-2 flex items-baseline gap-3">
-            <h2 className="font-mono text-xs uppercase tracking-[0.2em] text-ink">
-              Recurrentes
-            </h2>
-            <span className="font-mono text-xs text-faint">
-              {recPendientesHoy.length.toString().padStart(2, "0")}
-            </span>
-          </div>
+          <button
+            onClick={() =>
+              setSeccionesOpen((v) => ({ ...v, recurrentes: !v.recurrentes }))
+            }
+            className="mb-2 flex items-baseline gap-3 font-mono text-xs uppercase tracking-[0.2em] text-ink transition hover:opacity-70"
+          >
+            <span>Recurrentes</span>
+            <span>{recPendientesHoy.length.toString().padStart(2, "0")}</span>
+            <span>{seccionesOpen.recurrentes ? "−" : "+"}</span>
+          </button>
+          <div className={seccionesOpen.recurrentes ? "block" : "hidden"}>
 
           {recPendientesHoy.length === 0 && recHechasHoy.length === 0 ? (
             <p className="pl-4 font-sans text-sm text-faint/60">
@@ -600,6 +635,7 @@ export default function Agenda({ initial }: { initial: Task[] }) {
               )}
             </div>
           )}
+          </div>
         </section>
       )}
 
@@ -610,17 +646,25 @@ export default function Agenda({ initial }: { initial: Task[] }) {
         );
         return (
           <section key={p} className="mb-9">
-            <div className="mb-2 flex items-baseline gap-3">
-              <h2
-                className="font-mono text-xs uppercase tracking-[0.2em]"
-                style={{ color: META[p].color }}
-              >
-                {META[p].label}
-              </h2>
-              <span className="font-mono text-xs text-faint">
-                {items.length.toString().padStart(2, "0")}
+            <button
+              onClick={() =>
+                setSeccionesOpen((v) => ({ ...v, [p]: !v[p] }))
+              }
+              className="mb-2 flex w-full items-baseline gap-3 font-mono text-xs uppercase tracking-[0.2em] transition hover:opacity-70"
+              style={{ color: META[p].color }}
+            >
+              <span>{META[p].label}</span>
+              <span>{items.length.toString().padStart(2, "0")}</span>
+              <span>{seccionesOpen[p] ? "−" : "+"}</span>
+              <span className="ml-auto">
+                <ColorDot
+                  color={META[p].color}
+                  onChange={(c) => guardarColor(p, c)}
+                  label={META[p].label}
+                />
               </span>
-            </div>
+            </button>
+            <div className={seccionesOpen[p] ? "block" : "hidden"}>
 
             {items.length === 0 ? (
               <p className="pl-4 font-sans text-sm text-faint/60">
@@ -665,6 +709,7 @@ export default function Agenda({ initial }: { initial: Task[] }) {
                 ))}
               </ul>
             )}
+          </div>
           </section>
         );
       })}

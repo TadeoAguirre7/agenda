@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { parseLista, csvALineas } from "@/lib/parse-list";
+import ColorDot from "@/components/ColorDot";
 
 export type Categoria = "pelis" | "series" | "musica" | "libros";
 
@@ -14,7 +15,7 @@ export type EntertainmentItem = {
 
 const CATEGORIAS: Categoria[] = ["pelis", "series", "musica", "libros"];
 
-const META: Record<Categoria, { label: string; color: string }> = {
+const DEFAULT_META: Record<Categoria, { label: string; color: string }> = {
   pelis: { label: "Pelis", color: "var(--alta)" },
   series: { label: "Series", color: "var(--media)" },
   musica: { label: "Música", color: "var(--baja)" },
@@ -23,24 +24,32 @@ const META: Record<Categoria, { label: string; color: string }> = {
 
 export default function Entretenimiento({
   initial,
+  preferences,
 }: {
   initial: EntertainmentItem[];
+  preferences?: Partial<Record<Categoria, string>>;
 }) {
+  const META: Record<Categoria, { label: string; color: string }> = {
+    pelis: { label: DEFAULT_META.pelis.label, color: preferences?.pelis ?? DEFAULT_META.pelis.color },
+    series: { label: DEFAULT_META.series.label, color: preferences?.series ?? DEFAULT_META.series.color },
+    musica: { label: DEFAULT_META.musica.label, color: preferences?.musica ?? DEFAULT_META.musica.color },
+    libros: { label: DEFAULT_META.libros.label, color: preferences?.libros ?? DEFAULT_META.libros.color },
+  };
+
   const [items, setItems] = useState<EntertainmentItem[]>(initial);
   const [titulo, setTitulo] = useState("");
   const [categoria, setCategoria] = useState<Categoria>("pelis");
-  const [hechasOpen, setHechasOpen] = useState<Record<Categoria, boolean>>({
-    pelis: false,
-    series: false,
-    musica: false,
-    libros: false,
+  const [seccionesOpen, setSeccionesOpen] = useState<Record<Categoria, boolean>>({
+    pelis: true,
+    series: true,
+    musica: true,
+    libros: true,
   });
   const [importOpen, setImportOpen] = useState(false);
   const [importTexto, setImportTexto] = useState("");
   const [importCategoria, setImportCategoria] = useState<Categoria>("pelis");
 
-  const pendientes = items.filter((i) => !i.completada);
-  const hechas = items.filter((i) => i.completada);
+  const visibles = items.filter((i) => !i.completada);
 
   async function crear() {
     const t = titulo.trim();
@@ -85,6 +94,18 @@ export default function Entretenimiento({
   async function borrar(id: string) {
     setItems((prev) => prev.filter((i) => i.id !== id));
     await fetch(`/api/entertainment/${id}`, { method: "DELETE" });
+  }
+
+  async function guardarColor(c: Categoria, color: string) {
+    const res = await fetch("/api/user/preferences", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ entertainmentColors: { [c]: color } }),
+    });
+    if (res.ok) {
+      META[c].color = color;
+      setItems((prev) => [...prev]);
+    }
   }
 
   async function importar() {
@@ -242,102 +263,66 @@ export default function Entretenimiento({
       </section>
 
       {CATEGORIAS.map((c) => {
-        const pendientesCat = pendientes.filter((i) => i.categoria === c);
-        const hechasCat = hechas.filter((i) => i.categoria === c);
-        const isOpen = hechasOpen[c];
+        const catItems = visibles.filter((i) => i.categoria === c);
+        const isOpen = seccionesOpen[c];
 
         return (
           <section key={c} className="mb-9">
-            <div className="mb-2 flex items-baseline gap-3">
-              <h2
-                className="font-mono text-xs uppercase tracking-[0.2em]"
-                style={{ color: META[c].color }}
-              >
-                {META[c].label}
-              </h2>
-              <span className="font-mono text-xs text-faint">
-                {pendientesCat.length.toString().padStart(2, "0")}
+            <button
+              onClick={() =>
+                setSeccionesOpen((prev) => ({ ...prev, [c]: !prev[c] }))
+              }
+              className="mb-2 flex w-full items-baseline gap-3 font-mono text-xs uppercase tracking-[0.2em] transition hover:opacity-70"
+              style={{ color: META[c].color }}
+            >
+              <span>{META[c].label}</span>
+              <span>{catItems.length.toString().padStart(2, "0")}</span>
+              <span>{isOpen ? "−" : "+"}</span>
+              <span className="ml-auto">
+                <ColorDot
+                  color={META[c].color}
+                  onChange={(color) => guardarColor(c, color)}
+                  label={META[c].label}
+                />
               </span>
-            </div>
+            </button>
 
-            {pendientesCat.length === 0 ? (
-              <p className="pl-4 font-sans text-sm text-faint/60">
-                sin items
-              </p>
-            ) : (
-              <ul
-                className="space-y-px border-l-3 pl-4"
-                style={{ borderColor: META[c].color }}
-              >
-                {pendientesCat.map((i) => (
-                  <li
-                    key={i.id}
-                    className="group flex items-center gap-3 py-2"
-                  >
-                    <button
-                      aria-label="Completar"
-                      onClick={() => patch(i.id, { completada: true })}
-                      className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full border transition hover:border-ink"
-                      style={{ borderColor: `${META[c].color}90` }}
-                    />
-
-                    <span className="flex-1 text-ink">{i.titulo}</span>
-
-                    <button
-                      aria-label="Borrar"
-                      onClick={() => borrar(i.id)}
-                      className="shrink-0 font-mono text-xs text-faint opacity-0 transition hover:text-alta group-hover:opacity-100"
-                    >
-                      ✕
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
-
-            {hechasCat.length > 0 && (
-              <div className="mt-4">
-                <button
-                  onClick={() =>
-                    setHechasOpen((prev) => ({ ...prev, [c]: !prev[c] }))
-                  }
-                  className="flex items-baseline gap-3 font-mono text-xs uppercase tracking-[0.2em] text-faint"
+            <div className={isOpen ? "block" : "hidden"}>
+              {catItems.length === 0 ? (
+                <p className="pl-4 font-sans text-sm text-faint/60">
+                  sin items
+                </p>
+              ) : (
+                <ul
+                  className="space-y-px border-l-3 pl-4"
+                  style={{ borderColor: META[c].color }}
                 >
-                  <span>Hechas</span>
-                  <span>{hechasCat.length.toString().padStart(2, "0")}</span>
-                  <span>{isOpen ? "−" : "+"}</span>
-                </button>
+                  {catItems.map((i) => (
+                    <li
+                      key={i.id}
+                      className="group flex items-center gap-3 py-2"
+                    >
+                      <button
+                        aria-label="Completar"
+                        onClick={() => patch(i.id, { completada: true })}
+                        className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full border transition hover:border-ink"
+                        style={{ borderColor: `${META[c].color}90` }}
+                      />
 
-                {isOpen && (
-                  <ul className="mt-3 space-y-px">
-                    {hechasCat.map((i) => (
-                      <li
-                        key={i.id}
-                        className="group flex items-center gap-3 py-1.5"
+                      <span className="flex-1 text-ink">{i.titulo}</span>
+
+                      <button
+                        aria-label="Borrar"
+                        onClick={() => borrar(i.id)}
+                        className="shrink-0 font-mono text-xs text-faint opacity-0 transition hover:text-alta group-hover:opacity-100"
                       >
-                        <button
-                          aria-label="Reabrir"
-                          onClick={() => patch(i.id, { completada: false })}
-                          className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-ink text-[10px] text-paper"
-                        >
-                          ✓
-                        </button>
-                        <span className="flex-1 text-faint line-through">
-                          {i.titulo}
-                        </span>
-                        <button
-                          aria-label="Borrar"
-                          onClick={() => borrar(i.id)}
-                          className="shrink-0 font-mono text-xs text-faint opacity-0 transition hover:text-alta group-hover:opacity-100"
-                        >
-                          ✕
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-            )}
+                        ✕
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
           </section>
         );
       })}

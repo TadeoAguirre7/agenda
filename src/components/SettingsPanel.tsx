@@ -57,7 +57,7 @@ export default function SettingsPanel() {
         onClick={() => setOpen((v) => !v)}
         aria-label="Ajustes"
         title="Ajustes"
-        className="rounded-full px-2 py-1 font-mono text-[10px] uppercase tracking-wider text-faint transition hover:bg-ink/5"
+        className="rounded-full p-2 text-xl leading-none text-faint transition hover:bg-ink/5"
       >
         ⚙
       </button>

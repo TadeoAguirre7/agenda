@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 
-const CATEGORIAS = ["restaurantes", "cafes", "bares", "dulces"] as const;
+const CATEGORIAS = ["restaurantes", "cafes", "museos", "ferias"] as const;
 const MAX_ITEMS = 200;
 
 // POST /api/restaurants/import — crear varios items de una vez

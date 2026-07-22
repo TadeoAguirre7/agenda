@@ -6,6 +6,7 @@ import Restaurantes, { type RestaurantItem } from "@/components/Restaurantes";
 import TabsManager from "@/components/TabsManager";
 import { SignInButton, SignOutButton } from "@/components/AuthButtons";
 import SettingsPanel from "@/components/SettingsPanel";
+import type { UserPreferences } from "@/types/preferences";
 
 export const dynamic = "force-dynamic";
 
@@ -29,6 +30,12 @@ export default async function Home() {
   }
 
   const userId = session.user.id;
+
+  const userPrefs = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { preferences: true },
+  });
+  const preferences = (userPrefs?.preferences ?? {}) as UserPreferences;
 
   const taskRows = await prisma.task.findMany({
     where: { userId },
@@ -97,7 +104,7 @@ export default async function Home() {
                 data-tab="restaurants"
                 className="rounded-full px-4 py-1.5 font-mono text-xs uppercase tracking-wider transition hover:bg-ink/5"
               >
-                Gastronomía
+                Lugares
               </button>
             </nav>
             <div className="flex items-center gap-3">
@@ -116,13 +123,13 @@ export default async function Home() {
       </header>
 
       <div data-content="todo">
-        <Agenda initial={tasks} />
+        <Agenda initial={tasks} preferences={preferences.taskColors} />
       </div>
       <div data-content="entertainment" className="hidden">
-        <Entretenimiento initial={entertainmentItems} />
+        <Entretenimiento initial={entertainmentItems} preferences={preferences.entertainmentColors} />
       </div>
       <div data-content="restaurants" className="hidden">
-        <Restaurantes initial={restaurantItems} />
+        <Restaurantes initial={restaurantItems} preferences={preferences.restaurantColors} />
       </div>
     </div>
   );
