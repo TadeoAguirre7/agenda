@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 import ColorDot from "@/components/ColorDot";
+import AnalogTimePicker from "@/components/AnalogTimePicker";
 
 export type Prioridad = "alta" | "media" | "baja";
 export type Recurrencia = "ninguna" | "diaria" | "intervalo" | "semanal";
@@ -218,6 +219,9 @@ export default function Agenda({
   const [editPrioridad, setEditPrioridad] = useState<Prioridad>("media");
   const [editDia, setEditDia] = useState("");
   const [editHora, setEditHora] = useState("");
+  const [editRecurrencia, setEditRecurrencia] = useState<Recurrencia>("ninguna");
+  const [editIntervalo, setEditIntervalo] = useState(2);
+  const [editDiasSel, setEditDiasSel] = useState<number[]>([]);
 
   const composerDateRef = useRef<HTMLInputElement>(null);
   const scheduleDateRef = useRef<HTMLInputElement>(null);
@@ -383,19 +387,33 @@ export default function Agenda({
     const { dia, hora } = inicialesEdicion(t);
     setEditDia(dia);
     setEditHora(hora);
+    setEditRecurrencia(t.recurrencia);
+    setEditIntervalo(t.intervaloDias ?? 2);
+    setEditDiasSel(
+      t.diasSemana ? t.diasSemana.split(",").map(Number) : [],
+    );
   }
 
   function guardarEdicionItem(t: Task) {
-    const recurrente = esRecurrente(t);
     const patchData: Partial<Task> = {
       titulo: editTitulo.trim(),
       prioridad: editPrioridad,
+      recurrencia: editRecurrencia,
+      intervaloDias:
+        editRecurrencia === "intervalo" ? editIntervalo : null,
+      diasSemana:
+        editRecurrencia === "semanal"
+          ? editDiasSel.slice().sort((a, b) => a - b).join(",")
+          : null,
     };
     const fechaValida = parseFecha(editDia);
 
-    if (recurrente) {
-      patchData.hora = HORA_HM_RE.test(editHora) ? editHora : null;
+    if (editRecurrencia !== "ninguna") {
       patchData.recordatorioAt = null;
+      patchData.hora = HORA_HM_RE.test(editHora) ? editHora : null;
+      if (t.recurrencia === "ninguna") {
+        patchData.ultimaHechaDia = null;
+      }
     } else {
       if (fechaValida) {
         patchData.recordatorioAt = toLocalISO(
@@ -410,12 +428,16 @@ export default function Agenda({
         patchData.hora = null;
         patchData.recordatorioAt = null;
       }
+      patchData.ultimaHechaDia = null;
     }
 
     patch(t.id, patchData);
     setEditandoId(null);
     setEditDia("");
     setEditHora("");
+    setEditRecurrencia("ninguna");
+    setEditIntervalo(2);
+    setEditDiasSel([]);
   }
 
   function renderItem(t: Task) {
@@ -460,7 +482,87 @@ export default function Agenda({
               })}
             </div>
 
-            {!recurrente && (
+            <div className="space-y-2">
+              <label className="block font-mono text-[10px] uppercase tracking-wider text-faint">
+                repetir
+              </label>
+              <div className="flex flex-wrap items-center gap-2">
+                {(
+                  [
+                    { r: "ninguna" as Recurrencia, label: "No" },
+                    { r: "diaria" as Recurrencia, label: "Cada día" },
+                    { r: "intervalo" as Recurrencia, label: "Cada X días" },
+                    { r: "semanal" as Recurrencia, label: "Días de la semana" },
+                  ]
+                ).map(({ r, label }) => {
+                  const on = editRecurrencia === r;
+                  return (
+                    <button
+                      key={r}
+                      type="button"
+                      onClick={() => setEditRecurrencia(r)}
+                      className="rounded-full border px-3 py-1 font-mono text-xs uppercase tracking-wider transition"
+                      style={{
+                        borderColor: on ? "var(--ink)" : "var(--rule)",
+                        color: on ? "var(--paper)" : "var(--faint)",
+                        background: on ? "var(--ink)" : "transparent",
+                      }}
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {editRecurrencia === "intervalo" && (
+                <div className="flex items-center gap-2 font-mono text-xs text-faint">
+                  <span>cada</span>
+                  <input
+                    type="number"
+                    min={2}
+                    max={365}
+                    value={editIntervalo}
+                    onChange={(e) => {
+                      const n = parseInt(e.target.value, 10);
+                      if (!Number.isNaN(n)) {
+                        setEditIntervalo(Math.min(365, Math.max(2, n)));
+                      }
+                    }}
+                    className="w-16 rounded-md border border-rule bg-panel px-2 py-1 text-center text-ink outline-none focus:border-ink"
+                  />
+                  <span>días</span>
+                </div>
+              )}
+
+              {editRecurrencia === "semanal" && (
+                <div className="flex flex-wrap gap-1.5">
+                  {DIAS_SEMANA.map(({ n, label }) => {
+                    const on = editDiasSel.includes(n);
+                    return (
+                      <button
+                        key={n}
+                        type="button"
+                        onClick={() =>
+                          setEditDiasSel((prev) =>
+                            on ? prev.filter((d) => d !== n) : [...prev, n],
+                          )
+                        }
+                        className="rounded-full border px-2.5 py-1 font-mono text-xs uppercase tracking-wider transition"
+                        style={{
+                          borderColor: on ? "var(--ink)" : "var(--rule)",
+                          color: on ? "var(--paper)" : "var(--faint)",
+                          background: on ? "var(--ink)" : "transparent",
+                        }}
+                      >
+                        {label}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {editRecurrencia === "ninguna" && (
               <div className="flex flex-wrap items-center gap-2">
                 <input
                   type="date"
@@ -501,12 +603,6 @@ export default function Agenda({
                 >
                   📅
                 </button>
-                <input
-                  type="time"
-                  value={editHora}
-                  onChange={(e) => setEditHora(e.target.value)}
-                  className="rounded-md border border-rule bg-panel px-3 py-1.5 font-mono text-sm text-ink outline-none focus:border-ink"
-                />
                 {fechaValida === null && editDia.trim() !== "" && (
                   <span className="font-mono text-[10px] uppercase tracking-wider text-alta">
                     formato: DD/MM/AAAA
@@ -515,25 +611,22 @@ export default function Agenda({
               </div>
             )}
 
-            {recurrente && (
-              <div className="flex flex-wrap items-center gap-2">
-                <label className="font-mono text-[10px] uppercase tracking-wider text-faint">
-                  hora
-                </label>
-                <input
-                  type="time"
-                  value={editHora}
-                  onChange={(e) => setEditHora(e.target.value)}
-                  className="rounded-md border border-rule bg-panel px-3 py-1.5 font-mono text-sm text-ink outline-none focus:border-ink"
-                />
-              </div>
-            )}
+            <div className="flex flex-wrap items-center gap-4">
+              <AnalogTimePicker
+                value={editHora || "09:00"}
+                onChange={(v) => setEditHora(v)}
+                label="hora"
+              />
+            </div>
 
             <div className="flex flex-wrap items-center gap-2">
               <button
                 type="button"
                 onClick={() => guardarEdicionItem(t)}
-                disabled={!editTitulo.trim()}
+                disabled={
+                  !editTitulo.trim() ||
+                  (editRecurrencia === "semanal" && editDiasSel.length === 0)
+                }
                 className="rounded-full bg-ink px-4 py-1.5 font-mono text-xs uppercase tracking-wider text-paper transition disabled:opacity-25"
               >
                 Guardar
@@ -544,6 +637,9 @@ export default function Agenda({
                   setEditandoId(null);
                   setEditDia("");
                   setEditHora("");
+                  setEditRecurrencia("ninguna");
+                  setEditIntervalo(2);
+                  setEditDiasSel([]);
                 }}
                 className="font-mono text-xs uppercase tracking-wider text-faint underline-offset-4 hover:underline"
               >
