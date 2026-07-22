@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 import ColorDot from "@/components/ColorDot";
 import AnalogTimePicker from "@/components/AnalogTimePicker";
+import { useDateContext } from "@/components/DateContext";
 
 export type Prioridad = "alta" | "media" | "baja";
 export type Recurrencia = "ninguna" | "diaria" | "intervalo" | "semanal";
@@ -216,11 +217,9 @@ function labelRecurrencia(t: Task): string {
 export default function Agenda({
   initial,
   preferences,
-  selectedDate,
 }: {
   initial: Task[];
   preferences?: Partial<Record<Prioridad, string>>;
-  selectedDate?: string; // "YYYY-MM-DD" — defaults to today
 }) {
   const [colores, setColores] = useState<Record<Prioridad, string>>({
     alta: preferences?.alta ?? DEFAULT_META.alta.color,
@@ -277,11 +276,10 @@ export default function Agenda({
   const hoyDate = new Date();
   const hoy = diaStr(hoyDate);
 
-  // Día que se está visualizando (prop o hoy por defecto)
-  const diaVisto = selectedDate ?? hoy;
-  const diaVistoDate = selectedDate
-    ? new Date(selectedDate + "T12:00:00")
-    : hoyDate;
+  // Día que se está visualizando (viene del contexto compartido con el header)
+  const { selectedDate } = useDateContext();
+  const diaVisto = selectedDate;
+  const diaVistoDate = new Date(selectedDate + "T12:00:00");
   const diaVistoDow = diaVistoDate.getDay();
   const viendoHoy = diaVisto === hoy;
 
