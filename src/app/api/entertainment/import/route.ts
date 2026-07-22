@@ -40,11 +40,15 @@ export async function POST(req: Request) {
     );
   }
 
+  // createdAt escalonado: el primer item pegado queda con el timestamp
+  // más reciente y aparece arriba (el listado ordena por createdAt desc)
+  const ahora = Date.now();
   await prisma.entertainmentItem.createMany({
-    data: titulos.map((titulo) => ({
+    data: titulos.map((titulo, i) => ({
       userId: session.user.id,
       titulo,
       categoria,
+      createdAt: new Date(ahora - i),
     })),
   });
 
