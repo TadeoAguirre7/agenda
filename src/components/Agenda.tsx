@@ -25,9 +25,9 @@ const PRIORIDADES: Prioridad[] = ["alta", "media", "baja"];
 const RECURRENCIAS: Recurrencia[] = ["ninguna", "diaria", "intervalo", "semanal"];
 
 const DEFAULT_META: Record<Prioridad, { label: string; color: string }> = {
-  alta: { label: "Alta", color: "var(--alta)" },
-  media: { label: "Media", color: "var(--media)" },
-  baja: { label: "Baja", color: "var(--baja)" },
+  alta: { label: "Alta", color: "#3e4e72" },
+  media: { label: "Media", color: "#5b6f95" },
+  baja: { label: "Baja", color: "#7a8baa" },
 };
 
 const DIAS_SEMANA = [
@@ -144,10 +144,15 @@ export default function Agenda({
   initial: Task[];
   preferences?: Partial<Record<Prioridad, string>>;
 }) {
+  const [colores, setColores] = useState<Record<Prioridad, string>>({
+    alta: preferences?.alta ?? DEFAULT_META.alta.color,
+    media: preferences?.media ?? DEFAULT_META.media.color,
+    baja: preferences?.baja ?? DEFAULT_META.baja.color,
+  });
   const META: Record<Prioridad, { label: string; color: string }> = {
-    alta: { label: "Alta", color: preferences?.alta ?? DEFAULT_META.alta.color },
-    media: { label: "Media", color: preferences?.media ?? DEFAULT_META.media.color },
-    baja: { label: "Baja", color: preferences?.baja ?? DEFAULT_META.baja.color },
+    alta: { label: "Alta", color: colores.alta },
+    media: { label: "Media", color: colores.media },
+    baja: { label: "Baja", color: colores.baja },
   };
 
   const [tasks, setTasks] = useState<Task[]>(initial);
@@ -172,15 +177,12 @@ export default function Agenda({
   });
 
   async function guardarColor(prioridad: Prioridad, color: string) {
-    const res = await fetch("/api/user/preferences", {
+    setColores((prev) => ({ ...prev, [prioridad]: color }));
+    await fetch("/api/user/preferences", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ taskColors: { [prioridad]: color } }),
     });
-    if (res.ok) {
-      META[prioridad].color = color;
-      setTasks((prev) => [...prev]);
-    }
   }
   const [editId, setEditId] = useState<string | null>(null);
   const [editText, setEditText] = useState("");

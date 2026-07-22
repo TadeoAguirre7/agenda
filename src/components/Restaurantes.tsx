@@ -29,11 +29,17 @@ export default function Restaurantes({
   initial: RestaurantItem[];
   preferences?: Partial<Record<Categoria, string>>;
 }) {
+  const [colores, setColores] = useState<Record<Categoria, string>>({
+    restaurantes: preferences?.restaurantes ?? DEFAULT_META.restaurantes.color,
+    cafes: preferences?.cafes ?? DEFAULT_META.cafes.color,
+    museos: preferences?.museos ?? DEFAULT_META.museos.color,
+    ferias: preferences?.ferias ?? DEFAULT_META.ferias.color,
+  });
   const META: Record<Categoria, { label: string; color: string }> = {
-    restaurantes: { label: DEFAULT_META.restaurantes.label, color: preferences?.restaurantes ?? DEFAULT_META.restaurantes.color },
-    cafes: { label: DEFAULT_META.cafes.label, color: preferences?.cafes ?? DEFAULT_META.cafes.color },
-    museos: { label: DEFAULT_META.museos.label, color: preferences?.museos ?? DEFAULT_META.museos.color },
-    ferias: { label: DEFAULT_META.ferias.label, color: preferences?.ferias ?? DEFAULT_META.ferias.color },
+    restaurantes: { label: DEFAULT_META.restaurantes.label, color: colores.restaurantes },
+    cafes: { label: DEFAULT_META.cafes.label, color: colores.cafes },
+    museos: { label: DEFAULT_META.museos.label, color: colores.museos },
+    ferias: { label: DEFAULT_META.ferias.label, color: colores.ferias },
   };
 
   const [items, setItems] = useState<RestaurantItem[]>(initial);
@@ -97,15 +103,12 @@ export default function Restaurantes({
   }
 
   async function guardarColor(c: Categoria, color: string) {
-    const res = await fetch("/api/user/preferences", {
+    setColores((prev) => ({ ...prev, [c]: color }));
+    await fetch("/api/user/preferences", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ restaurantColors: { [c]: color } }),
     });
-    if (res.ok) {
-      META[c].color = color;
-      setItems((prev) => [...prev]);
-    }
   }
 
   async function importar() {

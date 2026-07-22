@@ -38,10 +38,8 @@ body {
   font-weight: 500;
 }
 
-/* Fondo: Totoro en papel cuadriculado.
-   cover + anclado abajo-izquierda: conserva proporciones y
-   Totoro siempre visible. ::before fijo porque iOS ignora
-   background-attachment: fixed.
+/* Fondo: marco de estrellas de colores sobre crema.
+   ::before fijo porque iOS ignora background-attachment: fixed.
    Para el futuro selector de temas: cambiar imagen y variables
    de :root según [data-theme]. */
 body::before {
@@ -49,7 +47,7 @@ body::before {
   position: fixed;
   inset: 0;
   z-index: -1;
-  background: url("/background-totoro.jpeg") left bottom / cover no-repeat;
+  background: url("/background-stars.jpeg") center / cover no-repeat;
 }
 
 ::selection {

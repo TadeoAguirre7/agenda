@@ -16,9 +16,9 @@ export type EntertainmentItem = {
 const CATEGORIAS: Categoria[] = ["pelis", "series", "musica", "libros"];
 
 const DEFAULT_META: Record<Categoria, { label: string; color: string }> = {
-  pelis: { label: "Pelis", color: "var(--alta)" },
-  series: { label: "Series", color: "var(--media)" },
-  musica: { label: "Música", color: "var(--baja)" },
+  pelis: { label: "Pelis", color: "#3e4e72" },
+  series: { label: "Series", color: "#5b6f95" },
+  musica: { label: "Música", color: "#7a8baa" },
   libros: { label: "Libros", color: "#6e83ad" },
 };
 
@@ -29,11 +29,17 @@ export default function Entretenimiento({
   initial: EntertainmentItem[];
   preferences?: Partial<Record<Categoria, string>>;
 }) {
+  const [colores, setColores] = useState<Record<Categoria, string>>({
+    pelis: preferences?.pelis ?? DEFAULT_META.pelis.color,
+    series: preferences?.series ?? DEFAULT_META.series.color,
+    musica: preferences?.musica ?? DEFAULT_META.musica.color,
+    libros: preferences?.libros ?? DEFAULT_META.libros.color,
+  });
   const META: Record<Categoria, { label: string; color: string }> = {
-    pelis: { label: DEFAULT_META.pelis.label, color: preferences?.pelis ?? DEFAULT_META.pelis.color },
-    series: { label: DEFAULT_META.series.label, color: preferences?.series ?? DEFAULT_META.series.color },
-    musica: { label: DEFAULT_META.musica.label, color: preferences?.musica ?? DEFAULT_META.musica.color },
-    libros: { label: DEFAULT_META.libros.label, color: preferences?.libros ?? DEFAULT_META.libros.color },
+    pelis: { label: DEFAULT_META.pelis.label, color: colores.pelis },
+    series: { label: DEFAULT_META.series.label, color: colores.series },
+    musica: { label: DEFAULT_META.musica.label, color: colores.musica },
+    libros: { label: DEFAULT_META.libros.label, color: colores.libros },
   };
 
   const [items, setItems] = useState<EntertainmentItem[]>(initial);
@@ -97,15 +103,12 @@ export default function Entretenimiento({
   }
 
   async function guardarColor(c: Categoria, color: string) {
-    const res = await fetch("/api/user/preferences", {
+    setColores((prev) => ({ ...prev, [c]: color }));
+    await fetch("/api/user/preferences", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ entertainmentColors: { [c]: color } }),
     });
-    if (res.ok) {
-      META[c].color = color;
-      setItems((prev) => [...prev]);
-    }
   }
 
   async function importar() {
