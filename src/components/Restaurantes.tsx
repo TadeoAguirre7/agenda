@@ -14,6 +14,7 @@ export type RestaurantItem = {
 };
 
 const CATEGORIAS: Categoria[] = ["restaurantes", "cafes", "museos", "ferias"];
+const MAX_IMPORT = 200;
 
 const DEFAULT_META: Record<Categoria, { label: string; color: string }> = {
   restaurantes: { label: "Restaurantes", color: "#3e4e72" },
@@ -114,6 +115,12 @@ export default function Restaurantes({
   async function importar() {
     const titulos = parseLista(importTexto);
     if (titulos.length === 0) return;
+    if (titulos.length > MAX_IMPORT) {
+      const seguir = window.confirm(
+        `Pegaste ${titulos.length} items. El máximo es ${MAX_IMPORT} por vez: solo se importarán los primeros ${MAX_IMPORT}. ¿Continuar?`,
+      );
+      if (!seguir) return;
+    }
     const tempItems: RestaurantItem[] = titulos.map((t, i) => ({
       id: `local-${Date.now()}-${i}`,
       titulo: t,
@@ -250,6 +257,11 @@ export default function Restaurantes({
                 {parseLista(importTexto).length.toString().padStart(2, "0")}{" "}
                 items
               </span>
+              {parseLista(importTexto).length > MAX_IMPORT && (
+                <span className="font-mono text-xs text-alta">
+                  máx. {MAX_IMPORT} por vez
+                </span>
+              )}
               <button
                 onClick={importar}
                 disabled={parseLista(importTexto).length === 0}
