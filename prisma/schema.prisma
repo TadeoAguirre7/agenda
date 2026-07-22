@@ -19,7 +19,8 @@ model Task {
   fechaVencimiento DateTime?
   recordatorioAt   DateTime?
   notificado       Boolean   @default(false)
-  completada       Boolean   @default(false)
+  completada       Boolean  @default(false)
+  completadaAt     DateTime? // cuándo se marcó como completada (para estadísticas y vista diaria)
   hora             String? // "HH:MM" — hora opcional del día
   recurrencia      String    @default("ninguna") // "ninguna" | "diaria" | "intervalo" | "semanal"
   intervaloDias    Int? // cada X días (recurrencia = "intervalo")

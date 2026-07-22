@@ -32,7 +32,10 @@ export async function PATCH(
     data.titulo = body.titulo.trim();
   if ("descripcion" in body) data.descripcion = body.descripcion ?? null;
   if (PRIORIDADES.includes(body.prioridad)) data.prioridad = body.prioridad;
-  if ("completada" in body) data.completada = Boolean(body.completada);
+  if ("completada" in body) {
+    data.completada = Boolean(body.completada);
+    data.completadaAt = body.completada ? new Date() : null;
+  }
   if ("fechaVencimiento" in body)
     data.fechaVencimiento = body.fechaVencimiento
       ? new Date(body.fechaVencimiento)

@@ -15,6 +15,7 @@ export type Task = {
   fechaVencimiento: string | null;
   recordatorioAt: string | null;
   completada: boolean;
+  completadaAt: string | null;
   hora: string | null;
   recurrencia: Recurrencia;
   intervaloDias: number | null;
@@ -55,6 +56,14 @@ const pad = (n: number) => n.toString().padStart(2, "0");
 
 function diaStr(d: Date): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+function diffDias(desde: string, hasta: string): number {
+  const [ya, ma, da] = desde.split("-").map(Number);
+  const [yb, mb, db] = hasta.split("-").map(Number);
+  return Math.round(
+    (Date.UTC(yb, mb - 1, db) - Date.UTC(ya, ma - 1, da)) / 86400000,
+  );
 }
 
 function fmtHora(iso: string | null): string | null {
@@ -151,6 +160,42 @@ function hechaHoy(t: Task, hoy: string): boolean {
   return t.ultimaHechaDia === hoy;
 }
 
+// Una tarea recurrente toca hoy segun su regla (diaria / semanal / intervalo)
+function tocaHoy(t: Task, hoy: string, hoyDow: number): boolean {
+  switch (t.recurrencia) {
+    case "diaria":
+      return true;
+    case "semanal":
+      return (t.diasSemana ?? "").split(",").includes(String(hoyDow));
+    case "intervalo":
+      return (
+        !t.ultimaHechaDia ||
+        diffDias(t.ultimaHechaDia, hoy) >= (t.intervaloDias ?? 2)
+      );
+    default:
+      return false;
+  }
+}
+
+// Determina si una tarea pertenece al dia de hoy
+function esHoy(t: Task, hoy: string, hoyDow: number): boolean {
+  if (t.recurrencia !== "ninguna") return tocaHoy(t, hoy, hoyDow);
+  if (t.recordatorioAt) {
+    return diaStr(new Date(t.recordatorioAt)) === hoy;
+  }
+  // tarea no recurrente sin fecha pero con hora: se considera diaria
+  return Boolean(t.hora);
+}
+
+// Determina si una tarea fue completada hoy
+function esHechaHoy(t: Task, hoy: string): boolean {
+  if (t.recurrencia !== "ninguna") return hechaHoy(t, hoy);
+  if (t.completada && t.completadaAt) {
+    return diaStr(new Date(t.completadaAt)) === hoy;
+  }
+  return false;
+}
+
 function labelRecurrencia(t: Task): string {
   switch (t.recurrencia) {
     case "diaria":
@@ -171,9 +216,11 @@ function labelRecurrencia(t: Task): string {
 export default function Agenda({
   initial,
   preferences,
+  selectedDate,
 }: {
   initial: Task[];
   preferences?: Partial<Record<Prioridad, string>>;
+  selectedDate?: string; // "YYYY-MM-DD" — defaults to today
 }) {
   const [colores, setColores] = useState<Record<Prioridad, string>>({
     alta: preferences?.alta ?? DEFAULT_META.alta.color,
@@ -230,20 +277,40 @@ export default function Agenda({
   const hoyDate = new Date();
   const hoy = diaStr(hoyDate);
 
+  // Día que se está visualizando (prop o hoy por defecto)
+  const diaVisto = selectedDate ?? hoy;
+  const diaVistoDate = selectedDate
+    ? new Date(selectedDate + "T12:00:00")
+    : hoyDate;
+  const diaVistoDow = diaVistoDate.getDay();
+  const viendoHoy = diaVisto === hoy;
+
   const esRecurrenteActiva = recurrencia !== "ninguna";
 
   function esRecurrente(t: Task): boolean {
     return t.recurrencia !== "ninguna";
   }
 
-  const pendientes = ordenarPorHora(tasks.filter((t) => !t.completada));
-  const pendientesProgramadas = pendientes.filter(
-    (t) => esRecurrente(t) || t.recordatorioAt || t.hora,
+  const tareasDiaPendientes = ordenarPorHora(
+    tasks.filter(
+      (t) =>
+        esHoy(t, diaVisto, diaVistoDow) && !esHechaHoy(t, diaVisto),
+    ),
   );
-  const pendientesSinAgendar = pendientes.filter(
-    (t) => !esRecurrente(t) && !t.recordatorioAt && !t.hora,
+  const tareasDiaHechas = ordenarPorHora(
+    tasks.filter((t) => esHechaHoy(t, diaVisto)),
   );
-  const hechas = ordenarPorHora(tasks.filter((t) => t.completada));
+  const pendientesSinAgendar = viendoHoy
+    ? ordenarPorHora(
+        tasks.filter(
+          (t) =>
+            !t.completada &&
+            !esRecurrente(t) &&
+            !t.recordatorioAt &&
+            !t.hora,
+        ),
+      )
+    : [];
 
   const fechaInvalida =
     recordatorioDia.trim() !== "" && !parseFecha(recordatorioDia);
@@ -273,6 +340,7 @@ export default function Agenda({
       fechaVencimiento: null,
       recordatorioAt: esRecurrenteActiva ? null : recordatorioISO(),
       completada: false,
+      completadaAt: null,
       hora: hora || null,
       recurrencia,
       intervaloDias: recurrencia === "intervalo" ? intervaloDias : null,
@@ -448,7 +516,7 @@ export default function Agenda({
 
   function renderItem(t: Task) {
     const recurrente = esRecurrente(t);
-    const doneToday = recurrente && hechaHoy(t, hoy);
+    const doneToday = recurrente && hechaHoy(t, diaVisto);
 
     if (editandoId === t.id) {
       const fechaValida = parseFecha(editDia);
@@ -687,7 +755,7 @@ export default function Agenda({
             onClick={() =>
               patch(
                 t.id,
-                recurrente ? { ultimaHechaDia: hoy } : { completada: true },
+                recurrente ? { ultimaHechaDia: diaVisto } : { completada: true },
               )
             }
             className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full border transition hover:border-ink"
@@ -1062,11 +1130,13 @@ export default function Agenda({
           ))}
         </div>
 
-        {pendientesProgramadas.length === 0 ? (
-          <p className="font-sans text-sm text-faint/60">sin tareas pendientes</p>
+        {tareasDiaPendientes.length === 0 ? (
+          <p className="font-sans text-sm text-faint/60">
+            sin tareas para {viendoHoy ? "hoy" : new Intl.DateTimeFormat("es-AR", { day: "numeric", month: "short" }).format(diaVistoDate)}
+          </p>
         ) : (
           <ul className="space-y-px">
-            {pendientesProgramadas.map((t) => renderItem(t))}
+            {tareasDiaPendientes.map((t) => renderItem(t))}
           </ul>
         )}
       </section>
@@ -1089,25 +1159,32 @@ export default function Agenda({
         </section>
       )}
 
-      {/* Hechas */}
-      {hechas.length > 0 && (
+      {/* Hechas hoy */}
+      {tareasDiaHechas.length > 0 && (
         <section className="mt-12 border-t border-rule pt-6">
           <button
             onClick={() => setHechasOpen((v) => !v)}
             className="flex items-baseline gap-3 font-mono text-xs uppercase tracking-[0.2em] text-faint"
           >
-            <span>Hechas</span>
-            <span>{hechas.length.toString().padStart(2, "0")}</span>
+            <span>{viendoHoy ? "Hechas hoy" : "Completadas"}</span>
+            <span>{tareasDiaHechas.length.toString().padStart(2, "0")}</span>
             <span>{hechasOpen ? "−" : "+"}</span>
           </button>
 
           {hechasOpen && (
             <ul className="mt-3 space-y-px">
-              {hechas.map((t) => (
+              {tareasDiaHechas.map((t) => (
                 <li key={t.id} className="group flex items-center gap-3 py-1.5">
                   <button
                     aria-label="Reabrir"
-                    onClick={() => patch(t.id, { completada: false })}
+                    onClick={() =>
+                      patch(
+                        t.id,
+                        t.recurrencia !== "ninguna"
+                          ? { ultimaHechaDia: null }
+                          : { completada: false },
+                      )
+                    }
                     className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-ink text-[10px] text-paper"
                   >
                     ✓

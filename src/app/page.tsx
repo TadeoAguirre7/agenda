@@ -49,6 +49,7 @@ export default async function Home() {
     fechaVencimiento: t.fechaVencimiento?.toISOString() ?? null,
     recordatorioAt: t.recordatorioAt?.toISOString() ?? null,
     completada: t.completada,
+    completadaAt: t.completadaAt?.toISOString() ?? null,
     hora: t.hora,
     recurrencia: t.recurrencia as Task["recurrencia"],
     intervaloDias: t.intervaloDias,
