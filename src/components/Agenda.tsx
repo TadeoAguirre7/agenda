@@ -237,6 +237,12 @@ export default function Agenda({
   }
 
   const pendientes = ordenarPorHora(tasks.filter((t) => !t.completada));
+  const pendientesProgramadas = pendientes.filter(
+    (t) => esRecurrente(t) || t.recordatorioAt || t.hora,
+  );
+  const pendientesSinAgendar = pendientes.filter(
+    (t) => !esRecurrente(t) && !t.recordatorioAt && !t.hora,
+  );
   const hechas = ordenarPorHora(tasks.filter((t) => t.completada));
 
   const fechaInvalida =
@@ -1037,7 +1043,7 @@ export default function Agenda({
         )}
       </section>
 
-      {/* Pendientes: un único listado */}
+      {/* Pendientes programadas */}
       <section className="mb-12">
         <div className="mb-3 flex items-center justify-end gap-3">
           {PRIORIDADES.map((p) => (
@@ -1056,14 +1062,32 @@ export default function Agenda({
           ))}
         </div>
 
-        {pendientes.length === 0 ? (
+        {pendientesProgramadas.length === 0 ? (
           <p className="font-sans text-sm text-faint/60">sin tareas pendientes</p>
         ) : (
           <ul className="space-y-px">
-            {pendientes.map((t) => renderItem(t))}
+            {pendientesProgramadas.map((t) => renderItem(t))}
           </ul>
         )}
       </section>
+
+      {/* Pendientes por agendar */}
+      {pendientesSinAgendar.length > 0 && (
+        <section className="mb-12 border-t border-rule pt-8">
+          <div className="mb-4 flex items-baseline gap-3">
+            <h2 className="font-mono text-xs uppercase tracking-[0.2em] text-faint">
+              Pendientes por agendar
+            </h2>
+            <span className="font-mono text-xs text-faint">
+              {pendientesSinAgendar.length.toString().padStart(2, "0")}
+            </span>
+          </div>
+
+          <ul className="space-y-px">
+            {pendientesSinAgendar.map((t) => renderItem(t))}
+          </ul>
+        </section>
+      )}
 
       {/* Hechas */}
       {hechas.length > 0 && (
