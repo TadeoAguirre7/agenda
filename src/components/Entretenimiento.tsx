@@ -68,7 +68,7 @@ export default function Entretenimiento({
       categoria,
       completada: false,
     };
-    setItems((prev) => [optimista, ...prev]);
+    setItems((prev) => [...prev, optimista]);
     setTitulo("");
 
     const res = await fetch("/api/entertainment", {

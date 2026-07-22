@@ -351,7 +351,7 @@ export default function Agenda({
           : null,
       ultimaHechaDia: null,
     };
-    setTasks((prev) => [optimista, ...prev]);
+    setTasks((prev) => [...prev, optimista]);
     setTitulo("");
     setRecordatorioDia("");
     setRecordatorioHora("");

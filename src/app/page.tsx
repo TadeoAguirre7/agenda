@@ -38,7 +38,7 @@ export default async function Home() {
 
   const taskRows = await prisma.task.findMany({
     where: { userId },
-    orderBy: { createdAt: "desc" },
+    orderBy: { createdAt: "asc" },
   });
 
   const tasks: Task[] = taskRows.map((t) => ({
@@ -59,7 +59,7 @@ export default async function Home() {
 
   const entertainmentRows = await prisma.entertainmentItem.findMany({
     where: { userId },
-    orderBy: { createdAt: "desc" },
+    orderBy: { createdAt: "asc" },
   });
 
   const entertainmentItems: EntertainmentItem[] = entertainmentRows.map((i) => ({
@@ -71,7 +71,7 @@ export default async function Home() {
 
   const restaurantRows = await prisma.restaurantItem.findMany({
     where: { userId },
-    orderBy: { createdAt: "desc" },
+    orderBy: { createdAt: "asc" },
   });
 
   const restaurantItems: RestaurantItem[] = restaurantRows.map((i) => ({
