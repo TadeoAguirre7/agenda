@@ -56,14 +56,6 @@ function diaStr(d: Date): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
-function diffDias(desde: string, hasta: string): number {
-  const [ya, ma, da] = desde.split("-").map(Number);
-  const [yb, mb, db] = hasta.split("-").map(Number);
-  return Math.round(
-    (Date.UTC(yb, mb - 1, db) - Date.UTC(ya, ma - 1, da)) / 86400000,
-  );
-}
-
 function fmtHora(iso: string | null): string | null {
   if (!iso) return null;
   const d = new Date(iso);
@@ -111,31 +103,6 @@ function parseFecha(str: string): string | null {
 function horaDe(t: Task): string | null {
   if (t.hora) return t.hora;
   return fmtHora(t.recordatorioAt);
-}
-
-// primero las que no tienen hora (orden actual), luego las que tienen, ascendente
-function ordenarPorHora(items: Task[]): Task[] {
-  const sin = items.filter((t) => !horaDe(t));
-  const con = items
-    .filter((t) => horaDe(t))
-    .sort((a, b) => horaDe(a)!.localeCompare(horaDe(b)!));
-  return [...sin, ...con];
-}
-
-function tocaHoy(t: Task, hoy: string, hoyDow: number): boolean {
-  switch (t.recurrencia) {
-    case "diaria":
-      return true;
-    case "semanal":
-      return (t.diasSemana ?? "").split(",").includes(String(hoyDow));
-    case "intervalo":
-      return (
-        !t.ultimaHechaDia ||
-        diffDias(t.ultimaHechaDia, hoy) >= (t.intervaloDias ?? 2)
-      );
-    default:
-      return false;
-  }
 }
 
 function hechaHoy(t: Task, hoy: string): boolean {
@@ -190,14 +157,6 @@ export default function Agenda({
   const [horaOpen, setHoraOpen] = useState(false);
   const [hora, setHora] = useState("");
   const [hechasOpen, setHechasOpen] = useState(false);
-  const [noTocanOpen, setNoTocanOpen] = useState(false);
-  const [seccionesOpen, setSeccionesOpen] = useState({
-    recurrentes: true,
-    alta: true,
-    media: true,
-    baja: true,
-    porAgendar: true,
-  });
 
   async function guardarColor(prioridad: Prioridad, color: string) {
     setColores((prev) => ({ ...prev, [prioridad]: color }));
@@ -215,7 +174,6 @@ export default function Agenda({
 
   const hoyDate = new Date();
   const hoy = diaStr(hoyDate);
-  const hoyDow = hoyDate.getDay();
 
   const esRecurrenteActiva = recurrencia !== "ninguna";
 
@@ -223,25 +181,7 @@ export default function Agenda({
     return t.recurrencia !== "ninguna";
   }
 
-  function tieneFecha(t: Task): boolean {
-    return Boolean(t.fechaVencimiento || t.recordatorioAt);
-  }
-
-  const recurrentes = tasks.filter((t) => !t.completada && esRecurrente(t));
-  const recHechasHoy = recurrentes.filter((t) => hechaHoy(t, hoy));
-  const recPendientesHoy = ordenarPorHora(
-    recurrentes.filter((t) => tocaHoy(t, hoy, hoyDow) && !hechaHoy(t, hoy)),
-  );
-  const recNoTocan = recurrentes.filter(
-    (t) => !tocaHoy(t, hoy, hoyDow) && !hechaHoy(t, hoy),
-  );
-
-  const agendadas = tasks.filter(
-    (t) => !t.completada && !esRecurrente(t) && tieneFecha(t),
-  );
-  const porAgendar = ordenarPorHora(
-    tasks.filter((t) => !t.completada && !esRecurrente(t) && !tieneFecha(t)),
-  );
+  const pendientes = tasks.filter((t) => !t.completada);
   const hechas = tasks.filter((t) => t.completada);
 
   const fechaInvalida =
@@ -382,6 +322,137 @@ export default function Agenda({
       >
         ✕
       </button>
+    );
+  }
+
+  function renderItem(t: Task) {
+    const recurrente = esRecurrente(t);
+    const doneToday = recurrente && hechaHoy(t, hoy);
+
+    return (
+      <li
+        key={t.id}
+        className="group flex items-center gap-3 border-l-3 py-2 pl-4"
+        style={{ borderColor: META[t.prioridad].color }}
+      >
+        {doneToday ? (
+          <button
+            aria-label="Reabrir"
+            onClick={() => patch(t.id, { ultimaHechaDia: null })}
+            className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-ink text-[10px] text-paper"
+          >
+            ✓
+          </button>
+        ) : (
+          <button
+            aria-label={recurrente ? "Hecha hoy" : "Completar"}
+            onClick={() =>
+              patch(
+                t.id,
+                recurrente ? { ultimaHechaDia: hoy } : { completada: true },
+              )
+            }
+            className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full border transition hover:border-ink"
+            style={{ borderColor: `${META[t.prioridad].color}90` }}
+          />
+        )}
+
+        {doneToday ? (
+          <span className="flex-1 text-faint line-through">{t.titulo}</span>
+        ) : (
+          renderEditable(t)
+        )}
+
+        {recurrente && (
+          <span className="shrink-0 font-mono text-[10px] uppercase tracking-wider text-faint">
+            {labelRecurrencia(t)}
+          </span>
+        )}
+
+        {recurrente && horaDe(t) && (
+          <span className="shrink-0 font-mono text-xs text-faint">
+            {horaDe(t)}
+          </span>
+        )}
+
+        {!recurrente && t.recordatorioAt && (
+          <span className="shrink-0 font-mono text-xs text-faint">
+            {fmtDiaCorto(t.recordatorioAt)
+              ? `${fmtDiaCorto(t.recordatorioAt)} `
+              : ""}
+            {fmtHora(t.recordatorioAt)}
+          </span>
+        )}
+
+        {!recurrente && t.hora && !t.recordatorioAt && (
+          <span className="shrink-0 font-mono text-xs text-faint">
+            {t.hora}
+          </span>
+        )}
+
+        {!recurrente && !t.recordatorioAt && (
+          <>
+            {scheduleId === t.id ? (
+              <div className="flex flex-wrap items-center gap-2">
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  placeholder="DD/MM/AAAA"
+                  value={scheduleDia}
+                  onChange={(e) => setScheduleDia(e.target.value)}
+                  className="w-28 rounded-md border border-rule bg-panel px-2 py-1 font-mono text-xs text-ink outline-none placeholder:text-faint/60 focus:border-ink"
+                />
+                <input
+                  type="time"
+                  value={scheduleHora}
+                  onChange={(e) => setScheduleHora(e.target.value)}
+                  className="rounded-md border border-rule bg-panel px-2 py-1 font-mono text-xs text-ink outline-none focus:border-ink"
+                />
+                <button
+                  onClick={() => {
+                    const iso = parseFecha(scheduleDia);
+                    if (iso) {
+                      const hm = HORA_HM_RE.test(scheduleHora)
+                        ? scheduleHora
+                        : "09:00";
+                      patch(t.id, { recordatorioAt: `${iso}T${hm}` });
+                      setScheduleId(null);
+                      setScheduleDia("");
+                      setScheduleHora("");
+                    }
+                  }}
+                  className="rounded-md bg-ink px-2 py-1 font-mono text-xs text-paper"
+                >
+                  OK
+                </button>
+                <button
+                  onClick={() => {
+                    setScheduleId(null);
+                    setScheduleDia("");
+                    setScheduleHora("");
+                  }}
+                  className="font-mono text-xs text-faint"
+                >
+                  Cancelar
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => {
+                  setScheduleId(t.id);
+                  setScheduleDia("");
+                  setScheduleHora("");
+                }}
+                className="shrink-0 font-mono text-xs text-faint/80 transition hover:text-ink"
+              >
+                + fecha
+              </button>
+            )}
+          </>
+        )}
+
+        {renderBorrar(t)}
+      </li>
     );
   }
 
@@ -580,292 +651,33 @@ export default function Agenda({
         )}
       </section>
 
-      {/* Recurrentes */}
-      {recurrentes.length > 0 && (
-        <section className="mb-9 border-b border-rule pb-8">
-          <button
-            onClick={() =>
-              setSeccionesOpen((v) => ({ ...v, recurrentes: !v.recurrentes }))
-            }
-            className="mb-2 flex items-baseline gap-3 font-mono text-xs uppercase tracking-[0.2em] text-ink transition hover:opacity-70"
-          >
-            <span>Recurrentes</span>
-            <span>{recPendientesHoy.length.toString().padStart(2, "0")}</span>
-            <span>{seccionesOpen.recurrentes ? "−" : "+"}</span>
-          </button>
-          <div className={seccionesOpen.recurrentes ? "block" : "hidden"}>
-
-          {recPendientesHoy.length === 0 && recHechasHoy.length === 0 ? (
-            <p className="pl-4 font-sans text-sm text-faint/60">
-              nada para hoy
-            </p>
-          ) : (
-            <ul className="space-y-px">
-              {recPendientesHoy.map((t) => (
-                <li
-                  key={t.id}
-                  className="group flex items-center gap-3 border-l-3 py-2 pl-4"
-                  style={{ borderColor: META[t.prioridad].color }}
-                >
-                  <button
-                    aria-label="Hecha hoy"
-                    onClick={() => patch(t.id, { ultimaHechaDia: hoy })}
-                    className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full border transition hover:border-ink"
-                    style={{ borderColor: `${META[t.prioridad].color}90` }}
-                  />
-                  {renderEditable(t)}
-                  <span className="shrink-0 font-mono text-[10px] uppercase tracking-wider text-faint">
-                    {labelRecurrencia(t)}
-                  </span>
-                  {horaDe(t) && (
-                    <span className="shrink-0 font-mono text-xs text-faint">
-                      {horaDe(t)}
-                    </span>
-                  )}
-                  {renderBorrar(t)}
-                </li>
-              ))}
-              {recHechasHoy.map((t) => (
-                <li
-                  key={t.id}
-                  className="group flex items-center gap-3 border-l-3 py-2 pl-4"
-                  style={{ borderColor: "var(--rule)" }}
-                >
-                  <button
-                    aria-label="Reabrir"
-                    onClick={() => patch(t.id, { ultimaHechaDia: null })}
-                    className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-ink text-[10px] text-paper"
-                  >
-                    ✓
-                  </button>
-                  <span className="flex-1 text-faint line-through">
-                    {t.titulo}
-                  </span>
-                  <span className="shrink-0 font-mono text-[10px] uppercase tracking-wider text-faint">
-                    {labelRecurrencia(t)}
-                  </span>
-                  {horaDe(t) && (
-                    <span className="shrink-0 font-mono text-xs text-faint">
-                      {horaDe(t)}
-                    </span>
-                  )}
-                  {renderBorrar(t)}
-                </li>
-              ))}
-            </ul>
-          )}
-
-          {recNoTocan.length > 0 && (
-            <div className="mt-3 pl-4">
-              <button
-                onClick={() => setNoTocanOpen((v) => !v)}
-                className="flex items-baseline gap-3 font-mono text-[10px] uppercase tracking-[0.2em] text-faint/70"
-              >
-                <span>No tocan hoy</span>
-                <span>{recNoTocan.length.toString().padStart(2, "0")}</span>
-                <span>{noTocanOpen ? "−" : "+"}</span>
-              </button>
-
-              {noTocanOpen && (
-                <ul className="mt-2 space-y-px">
-                  {recNoTocan.map((t) => (
-                    <li
-                      key={t.id}
-                      className="group flex items-center gap-3 py-1.5 opacity-60"
-                    >
-                      <span className="h-5 w-5 shrink-0 rounded-full border border-faint/30" />
-                      <span className="flex-1 text-faint">{t.titulo}</span>
-                      <span className="shrink-0 font-mono text-[10px] uppercase tracking-wider text-faint">
-                        {labelRecurrencia(t)}
-                      </span>
-                      {horaDe(t) && (
-                        <span className="shrink-0 font-mono text-xs text-faint">
-                          {horaDe(t)}
-                        </span>
-                      )}
-                      {renderBorrar(t)}
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-          )}
-          </div>
-        </section>
-      )}
-
-      {/* Grupos por prioridad */}
-      {PRIORIDADES.map((p) => {
-        const items = ordenarPorHora(
-          agendadas.filter((t) => t.prioridad === p),
-        );
-        return (
-          <section key={p} className="mb-9">
-            <button
-              onClick={() =>
-                setSeccionesOpen((v) => ({ ...v, [p]: !v[p] }))
-              }
-              className="mb-2 flex w-full items-baseline gap-3 font-mono text-xs uppercase tracking-[0.2em] transition hover:opacity-70"
+      {/* Pendientes: un único listado */}
+      <section className="mb-12">
+        <div className="mb-3 flex items-center justify-end gap-3">
+          {PRIORIDADES.map((p) => (
+            <span
+              key={p}
+              className="flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-wider"
               style={{ color: META[p].color }}
             >
-              <span>{META[p].label}</span>
-              <span>{items.length.toString().padStart(2, "0")}</span>
-              <span>{seccionesOpen[p] ? "−" : "+"}</span>
-              <span className="ml-auto">
-                <ColorDot
-                  color={META[p].color}
-                  onChange={(c) => guardarColor(p, c)}
-                  label={META[p].label}
-                />
-              </span>
-            </button>
-            <div className={seccionesOpen[p] ? "block" : "hidden"}>
-
-            {items.length === 0 ? (
-              <p className="pl-4 font-sans text-sm text-faint/60">
-                sin tareas
-              </p>
-            ) : (
-              <ul
-                className="space-y-px border-l-3 pl-4"
-                style={{ borderColor: META[p].color }}
-              >
-                {items.map((t) => (
-                  <li
-                    key={t.id}
-                    className="group flex items-center gap-3 py-2"
-                  >
-                    <button
-                      aria-label="Completar"
-                      onClick={() => patch(t.id, { completada: true })}
-                      className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-faint/50 transition hover:border-ink"
-                      style={{ borderColor: `${META[p].color}90` }}
-                    />
-
-                    {renderEditable(t)}
-
-                    {t.recordatorioAt && (
-                      <span className="shrink-0 font-mono text-xs text-faint">
-                        {fmtDiaCorto(t.recordatorioAt)
-                          ? `${fmtDiaCorto(t.recordatorioAt)} `
-                          : ""}
-                        {fmtHora(t.recordatorioAt)}
-                      </span>
-                    )}
-
-                    {t.hora && !t.recordatorioAt && (
-                      <span className="shrink-0 font-mono text-xs text-faint">
-                        {t.hora}
-                      </span>
-                    )}
-
-                    {renderBorrar(t)}
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-          </section>
-        );
-      })}
-
-      {/* Pendientes por agendar */}
-      {porAgendar.length > 0 && (
-        <section className="mb-12 border-t border-rule pt-8">
-          <div className="mb-4 flex items-baseline gap-3">
-            <h2 className="font-mono text-xs uppercase tracking-[0.2em] text-faint">
-              Pendientes por agendar
-            </h2>
-            <span className="font-mono text-xs text-faint">
-              {porAgendar.length.toString().padStart(2, "0")}
+              {META[p].label}
+              <ColorDot
+                color={META[p].color}
+                onChange={(c) => guardarColor(p, c)}
+                label={META[p].label}
+              />
             </span>
-          </div>
+          ))}
+        </div>
 
+        {pendientes.length === 0 ? (
+          <p className="font-sans text-sm text-faint/60">sin tareas pendientes</p>
+        ) : (
           <ul className="space-y-px">
-            {porAgendar.map((t) => (
-              <li
-                key={t.id}
-                className="group flex items-center gap-3 border-l-3 py-2 pl-4"
-                style={{ borderColor: META[t.prioridad].color }}
-              >
-                <button
-                  aria-label="Completar"
-                  onClick={() => patch(t.id, { completada: true })}
-                  className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full border transition hover:border-ink"
-                  style={{ borderColor: `${META[t.prioridad].color}90` }}
-                />
-
-                {renderEditable(t)}
-
-                {t.hora && (
-                  <span className="shrink-0 font-mono text-xs text-faint">
-                    {t.hora}
-                  </span>
-                )}
-
-                {scheduleId === t.id ? (
-                  <div className="flex flex-wrap items-center gap-2">
-                    <input
-                      type="text"
-                      inputMode="numeric"
-                      placeholder="DD/MM/AAAA"
-                      value={scheduleDia}
-                      onChange={(e) => setScheduleDia(e.target.value)}
-                      className="w-28 rounded-md border border-rule bg-panel px-2 py-1 font-mono text-xs text-ink outline-none placeholder:text-faint/60 focus:border-ink"
-                    />
-                    <input
-                      type="time"
-                      value={scheduleHora}
-                      onChange={(e) => setScheduleHora(e.target.value)}
-                      className="rounded-md border border-rule bg-panel px-2 py-1 font-mono text-xs text-ink outline-none focus:border-ink"
-                    />
-                    <button
-                      onClick={() => {
-                        const iso = parseFecha(scheduleDia);
-                        if (iso) {
-                          const hm = HORA_HM_RE.test(scheduleHora)
-                            ? scheduleHora
-                            : "09:00";
-                          patch(t.id, { recordatorioAt: `${iso}T${hm}` });
-                          setScheduleId(null);
-                          setScheduleDia("");
-                          setScheduleHora("");
-                        }
-                      }}
-                      className="rounded-md bg-ink px-2 py-1 font-mono text-xs text-paper"
-                    >
-                      OK
-                    </button>
-                    <button
-                      onClick={() => {
-                        setScheduleId(null);
-                        setScheduleDia("");
-                        setScheduleHora("");
-                      }}
-                      className="font-mono text-xs text-faint"
-                    >
-                      Cancelar
-                    </button>
-                  </div>
-                ) : (
-                  <button
-                    onClick={() => {
-                      setScheduleId(t.id);
-                      setScheduleDia("");
-                      setScheduleHora("");
-                    }}
-                    className="shrink-0 font-mono text-xs text-faint/80 transition hover:text-ink"
-                  >
-                    + fecha
-                  </button>
-                )}
-
-                {renderBorrar(t)}
-              </li>
-            ))}
+            {pendientes.map((t) => renderItem(t))}
           </ul>
-        </section>
-      )}
+        )}
+      </section>
 
       {/* Hechas */}
       {hechas.length > 0 && (
