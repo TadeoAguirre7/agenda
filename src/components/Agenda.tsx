@@ -81,8 +81,30 @@ function fmtDiaCorto(iso: string | null): string | null {
   if (sameDay) return null;
   return new Intl.DateTimeFormat("es-AR", {
     day: "2-digit",
-    month: "short",
+    month: "2-digit",
+    year: "numeric",
   }).format(d);
+}
+
+const FECHA_RE = /^(\d{2})\/(\d{2})\/(\d{4})$/;
+const HORA_HM_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
+
+// "DD/MM/AAAA" -> "YYYY-MM-DD" (null si es inválida)
+function parseFecha(str: string): string | null {
+  const m = FECHA_RE.exec(str.trim());
+  if (!m) return null;
+  const dd = Number(m[1]);
+  const mm = Number(m[2]);
+  const yyyy = Number(m[3]);
+  const d = new Date(yyyy, mm - 1, dd);
+  if (
+    d.getFullYear() !== yyyy ||
+    d.getMonth() !== mm - 1 ||
+    d.getDate() !== dd
+  ) {
+    return null;
+  }
+  return `${m[3]}-${m[2]}-${m[1]}`;
 }
 
 // hora efectiva de la tarea: el campo hora o la del recordatorio
@@ -158,7 +180,8 @@ export default function Agenda({
   const [tasks, setTasks] = useState<Task[]>(initial);
   const [titulo, setTitulo] = useState("");
   const [prioridad, setPrioridad] = useState<Prioridad>("media");
-  const [recordatorio, setRecordatorio] = useState("");
+  const [recordatorioDia, setRecordatorioDia] = useState("");
+  const [recordatorioHora, setRecordatorioHora] = useState("");
   const [abierto, setAbierto] = useState(false);
   const [repetirOpen, setRepetirOpen] = useState(false);
   const [recurrencia, setRecurrencia] = useState<Recurrencia>("ninguna");
@@ -187,7 +210,8 @@ export default function Agenda({
   const [editId, setEditId] = useState<string | null>(null);
   const [editText, setEditText] = useState("");
   const [scheduleId, setScheduleId] = useState<string | null>(null);
-  const [scheduleDate, setScheduleDate] = useState("");
+  const [scheduleDia, setScheduleDia] = useState("");
+  const [scheduleHora, setScheduleHora] = useState("");
 
   const hoyDate = new Date();
   const hoy = diaStr(hoyDate);
@@ -220,8 +244,19 @@ export default function Agenda({
   );
   const hechas = tasks.filter((t) => t.completada);
 
+  const fechaInvalida =
+    recordatorioDia.trim() !== "" && !parseFecha(recordatorioDia);
   const anotarDisabled =
-    !titulo.trim() || (recurrencia === "semanal" && diasSel.length === 0);
+    !titulo.trim() ||
+    (recurrencia === "semanal" && diasSel.length === 0) ||
+    fechaInvalida;
+
+  function recordatorioISO(): string | null {
+    const iso = parseFecha(recordatorioDia);
+    if (!iso) return null;
+    const hm = HORA_HM_RE.test(recordatorioHora) ? recordatorioHora : "09:00";
+    return `${iso}T${hm}`;
+  }
 
   async function crear() {
     const t = titulo.trim();
@@ -235,7 +270,7 @@ export default function Agenda({
       descripcion: null,
       prioridad,
       fechaVencimiento: null,
-      recordatorioAt: esRecurrenteActiva ? null : recordatorio || null,
+      recordatorioAt: esRecurrenteActiva ? null : recordatorioISO(),
       completada: false,
       hora: hora || null,
       recurrencia,
@@ -251,7 +286,8 @@ export default function Agenda({
     };
     setTasks((prev) => [optimista, ...prev]);
     setTitulo("");
-    setRecordatorio("");
+    setRecordatorioDia("");
+    setRecordatorioHora("");
     setAbierto(false);
     setRepetirOpen(false);
     setRecurrencia("ninguna");
@@ -424,12 +460,29 @@ export default function Agenda({
             <label className="block font-mono text-[10px] uppercase tracking-wider text-faint">
               avisame el
             </label>
-            <input
-              type="datetime-local"
-              value={recordatorio}
-              onChange={(e) => setRecordatorio(e.target.value)}
-              className="mt-1 rounded-md border border-rule bg-panel px-3 py-1.5 font-mono text-sm text-ink outline-none focus:border-ink"
-            />
+            <div className="mt-1 flex flex-wrap items-center gap-2">
+              <input
+                type="text"
+                inputMode="numeric"
+                placeholder="DD/MM/AAAA"
+                value={recordatorioDia}
+                onChange={(e) => setRecordatorioDia(e.target.value)}
+                className={`w-32 rounded-md border bg-panel px-3 py-1.5 font-mono text-sm text-ink outline-none placeholder:text-faint/60 focus:border-ink ${
+                  fechaInvalida ? "border-alta" : "border-rule"
+                }`}
+              />
+              <input
+                type="time"
+                value={recordatorioHora}
+                onChange={(e) => setRecordatorioHora(e.target.value)}
+                className="rounded-md border border-rule bg-panel px-3 py-1.5 font-mono text-sm text-ink outline-none focus:border-ink"
+              />
+            </div>
+            {fechaInvalida && (
+              <p className="mt-1 font-mono text-[10px] uppercase tracking-wider text-alta">
+                formato: DD/MM/AAAA
+              </p>
+            )}
           </div>
         )}
 
@@ -751,20 +804,33 @@ export default function Agenda({
                 )}
 
                 {scheduleId === t.id ? (
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
                     <input
-                      type="datetime-local"
-                      value={scheduleDate}
-                      onChange={(e) => setScheduleDate(e.target.value)}
+                      type="text"
+                      inputMode="numeric"
+                      placeholder="DD/MM/AAAA"
+                      value={scheduleDia}
+                      onChange={(e) => setScheduleDia(e.target.value)}
+                      className="w-28 rounded-md border border-rule bg-panel px-2 py-1 font-mono text-xs text-ink outline-none placeholder:text-faint/60 focus:border-ink"
+                    />
+                    <input
+                      type="time"
+                      value={scheduleHora}
+                      onChange={(e) => setScheduleHora(e.target.value)}
                       className="rounded-md border border-rule bg-panel px-2 py-1 font-mono text-xs text-ink outline-none focus:border-ink"
                     />
                     <button
                       onClick={() => {
-                        if (scheduleDate) {
-                          patch(t.id, { recordatorioAt: scheduleDate });
+                        const iso = parseFecha(scheduleDia);
+                        if (iso) {
+                          const hm = HORA_HM_RE.test(scheduleHora)
+                            ? scheduleHora
+                            : "09:00";
+                          patch(t.id, { recordatorioAt: `${iso}T${hm}` });
+                          setScheduleId(null);
+                          setScheduleDia("");
+                          setScheduleHora("");
                         }
-                        setScheduleId(null);
-                        setScheduleDate("");
                       }}
                       className="rounded-md bg-ink px-2 py-1 font-mono text-xs text-paper"
                     >
@@ -773,7 +839,8 @@ export default function Agenda({
                     <button
                       onClick={() => {
                         setScheduleId(null);
-                        setScheduleDate("");
+                        setScheduleDia("");
+                        setScheduleHora("");
                       }}
                       className="font-mono text-xs text-faint"
                     >
@@ -784,9 +851,10 @@ export default function Agenda({
                   <button
                     onClick={() => {
                       setScheduleId(t.id);
-                      setScheduleDate("");
+                      setScheduleDia("");
+                      setScheduleHora("");
                     }}
-                    className="shrink-0 font-mono text-xs text-faint opacity-0 transition hover:text-ink group-hover:opacity-100"
+                    className="shrink-0 font-mono text-xs text-faint/80 transition hover:text-ink"
                   >
                     + fecha
                   </button>
