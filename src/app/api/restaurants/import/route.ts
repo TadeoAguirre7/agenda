@@ -40,13 +40,18 @@ export async function POST(req: Request) {
     );
   }
 
-  const creados = await prisma.$transaction(
-    titulos.map((titulo) =>
-      prisma.restaurantItem.create({
-        data: { userId: session.user.id, titulo, categoria },
-      }),
-    ),
-  );
+  await prisma.restaurantItem.createMany({
+    data: titulos.map((titulo) => ({
+      userId: session.user.id,
+      titulo,
+      categoria,
+    })),
+  });
 
-  return NextResponse.json(creados, { status: 201 });
+  const items = await prisma.restaurantItem.findMany({
+    where: { userId: session.user.id },
+    orderBy: { createdAt: "desc" },
+  });
+
+  return NextResponse.json(items, { status: 201 });
 }

@@ -342,7 +342,7 @@ export default function Agenda({
       <button
         aria-label="Borrar"
         onClick={() => borrar(t.id)}
-        className="shrink-0 font-mono text-xs text-faint opacity-0 transition hover:text-alta group-hover:opacity-100"
+        className="shrink-0 font-mono text-sm text-faint/80 transition hover:text-alta"
       >
         ✕
       </button>

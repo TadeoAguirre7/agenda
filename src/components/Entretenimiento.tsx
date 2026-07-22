@@ -133,11 +133,8 @@ export default function Entretenimiento({
     if (res.ok) {
       const data = await res.json();
       if (!data.offline && Array.isArray(data)) {
-        const tempIds = new Set(tempItems.map((t) => t.id));
-        setItems((prev) => [
-          ...data,
-          ...prev.filter((i) => !tempIds.has(i.id)),
-        ]);
+        // el server devuelve la lista completa actualizada
+        setItems(data);
       }
     }
   }
@@ -317,7 +314,7 @@ export default function Entretenimiento({
                       <button
                         aria-label="Borrar"
                         onClick={() => borrar(i.id)}
-                        className="shrink-0 font-mono text-xs text-faint opacity-0 transition hover:text-alta group-hover:opacity-100"
+                        className="shrink-0 font-mono text-sm text-faint/80 transition hover:text-alta"
                       >
                         ✕
                       </button>
