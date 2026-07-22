@@ -3,9 +3,8 @@ import { auth } from "@/lib/auth";
 import Agenda, { type Task } from "@/components/Agenda";
 import Entretenimiento, { type EntertainmentItem } from "@/components/Entretenimiento";
 import Restaurantes, { type RestaurantItem } from "@/components/Restaurantes";
-import TabsManager from "@/components/TabsManager";
-import { SignInButton, SignOutButton } from "@/components/AuthButtons";
-import SettingsPanel from "@/components/SettingsPanel";
+import TabsShell from "@/components/TabsShell";
+import { SignInButton } from "@/components/AuthButtons";
 import type { UserPreferences } from "@/types/preferences";
 
 export const dynamic = "force-dynamic";
@@ -82,55 +81,21 @@ export default async function Home() {
   }));
 
   return (
-    <div>
-      <TabsManager />
-      <header className="sticky top-0 z-10 border-b border-rule bg-paper/95 backdrop-blur">
-        <div className="mx-auto max-w-2xl px-5 sm:px-8">
-          <div className="flex items-center justify-between gap-3 overflow-x-auto py-3">
-            <nav className="flex shrink-0 gap-1">
-              <button
-                data-tab="todo"
-                className="rounded-full px-4 py-1.5 font-mono text-xs uppercase tracking-wider transition hover:bg-ink/5"
-              >
-                To do list
-              </button>
-              <button
-                data-tab="entertainment"
-                className="rounded-full px-4 py-1.5 font-mono text-xs uppercase tracking-wider transition hover:bg-ink/5"
-              >
-                Entretenimiento
-              </button>
-              <button
-                data-tab="restaurants"
-                className="rounded-full px-4 py-1.5 font-mono text-xs uppercase tracking-wider transition hover:bg-ink/5"
-              >
-                Lugares
-              </button>
-            </nav>
-            <div className="flex shrink-0 items-center gap-3">
-              <span className="font-mono text-xs uppercase tracking-[0.25em] text-faint">
-                {new Intl.DateTimeFormat("es-AR", {
-                  weekday: "short",
-                  day: "numeric",
-                  month: "short",
-                }).format(new Date())}
-              </span>
-              <SettingsPanel />
-              <SignOutButton title={session.user.email ?? ""} />
-            </div>
-          </div>
-        </div>
-      </header>
-
-      <div data-content="todo">
-        <Agenda initial={tasks} preferences={preferences.taskColors} />
-      </div>
-      <div data-content="entertainment" className="hidden">
-        <Entretenimiento initial={entertainmentItems} preferences={preferences.entertainmentColors} />
-      </div>
-      <div data-content="restaurants" className="hidden">
-        <Restaurantes initial={restaurantItems} preferences={preferences.restaurantColors} />
-      </div>
-    </div>
+    <TabsShell
+      userEmail={session.user.email ?? ""}
+      todo={<Agenda initial={tasks} preferences={preferences.taskColors} />}
+      entertainment={
+        <Entretenimiento
+          initial={entertainmentItems}
+          preferences={preferences.entertainmentColors}
+        />
+      }
+      restaurants={
+        <Restaurantes
+          initial={restaurantItems}
+          preferences={preferences.restaurantColors}
+        />
+      }
+    />
   );
 }
