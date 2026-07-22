@@ -5,6 +5,7 @@ import Entretenimiento, { type EntertainmentItem } from "@/components/Entretenim
 import Restaurantes, { type RestaurantItem } from "@/components/Restaurantes";
 import TabsManager from "@/components/TabsManager";
 import { SignInButton, SignOutButton } from "@/components/AuthButtons";
+import SettingsPanel from "@/components/SettingsPanel";
 
 export const dynamic = "force-dynamic";
 
@@ -107,6 +108,7 @@ export default async function Home() {
                   month: "short",
                 }).format(new Date())}
               </span>
+              <SettingsPanel />
               <SignOutButton title={session.user.email ?? ""} />
             </div>
           </div>

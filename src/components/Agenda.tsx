@@ -514,7 +514,7 @@ export default function Agenda({ initial }: { initial: Task[] }) {
               {recPendientesHoy.map((t) => (
                 <li
                   key={t.id}
-                  className="group flex items-center gap-3 border-l-2 py-2 pl-4"
+                  className="group flex items-center gap-3 border-l-3 py-2 pl-4"
                   style={{ borderColor: META[t.prioridad].color }}
                 >
                   <button
@@ -538,7 +538,7 @@ export default function Agenda({ initial }: { initial: Task[] }) {
               {recHechasHoy.map((t) => (
                 <li
                   key={t.id}
-                  className="group flex items-center gap-3 border-l-2 py-2 pl-4"
+                  className="group flex items-center gap-3 border-l-3 py-2 pl-4"
                   style={{ borderColor: "var(--rule)" }}
                 >
                   <button
@@ -628,7 +628,7 @@ export default function Agenda({ initial }: { initial: Task[] }) {
               </p>
             ) : (
               <ul
-                className="space-y-px border-l-2 pl-4"
+                className="space-y-px border-l-3 pl-4"
                 style={{ borderColor: META[p].color }}
               >
                 {items.map((t) => (
@@ -685,7 +685,7 @@ export default function Agenda({ initial }: { initial: Task[] }) {
             {porAgendar.map((t) => (
               <li
                 key={t.id}
-                className="group flex items-center gap-3 border-l-2 py-2 pl-4"
+                className="group flex items-center gap-3 border-l-3 py-2 pl-4"
                 style={{ borderColor: META[t.prioridad].color }}
               >
                 <button

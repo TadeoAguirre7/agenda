@@ -2,13 +2,13 @@
 
 :root {
   --paper: #fbfbf7; /* blanco papel cuadriculado */
-  --ink: #2e3237; /* gris tinta del trazo */
+  --ink: #1a1f24; /* gris tinta del trazo, más negro */
   --faint: #8b9097; /* gris lápiz */
   --rule: #e2e5e9; /* línea de la cuadrícula */
   --panel: #ffffff; /* papel elevado para inputs */
   --alta: #3e4e72; /* azul del paraguas */
-  --media: #7e93bc; /* azul acero */
-  --baja: #a9afb8; /* gris suave */
+  --media: #5b6f95; /* azul acero más marcado */
+  --baja: #7a8baa; /* azul gris visible, no se pierde */
   --acento: #c9d6ec; /* azul pálido (selección) */
 }
 
@@ -35,6 +35,7 @@ body {
   background: transparent;
   color: var(--ink);
   font-family: var(--font-sans), system-ui, sans-serif;
+  font-weight: 500;
 }
 
 /* Fondo: Totoro en papel cuadriculado.

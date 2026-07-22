@@ -266,7 +266,7 @@ export default function Restaurantes({
               </p>
             ) : (
               <ul
-                className="space-y-px border-l-2 pl-4"
+                className="space-y-px border-l-3 pl-4"
                 style={{ borderColor: META[c].color }}
               >
                 {pendientesCat.map((i) => (

@@ -52,11 +52,24 @@ export default function RootLayout({
         <script
           dangerouslySetInnerHTML={{
             __html: `
-              if (typeof navigator !== 'undefined' && navigator.serviceWorker) {
+              // En desarrollo desregistramos SW para evitar problemas con HMR
+              if (window.location.hostname === 'localhost' && navigator.serviceWorker) {
                 navigator.serviceWorker.getRegistrations().then(function(regs) {
                   regs.forEach(function(r) { r.unregister(); });
                 });
               }
+            `,
+          }}
+        />
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              (function() {
+                const s = localStorage.getItem('font-size');
+                if (s === 'small') document.documentElement.classList.add('text-sm');
+                else if (s === 'large') document.documentElement.classList.add('text-lg');
+                else document.documentElement.classList.add('text-base');
+              })();
             `,
           }}
         />
