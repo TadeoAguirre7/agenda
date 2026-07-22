@@ -1,8 +1,9 @@
-const CACHE_NAME = "bitacora-v4";
+const CACHE_NAME = "bitacora-v5";
 const STATIC_ASSETS = [
   "/",
   "/manifest.json",
   "/icon-512x512.svg",
+  "/background-totoro.jpeg",
   "/background.jpeg",
   "/favicon.ico",
 ];

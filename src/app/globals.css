@@ -1,15 +1,15 @@
 @import "tailwindcss";
 
 :root {
-  --paper: #fcfbe9; /* crema del centro del marco */
-  --ink: #3e1220; /* vino oscuro */
-  --faint: #9a737d; /* malva apagado */
-  --rule: #f0d4d2; /* línea rosada suave */
-  --panel: #fffdf4; /* crema elevado para inputs */
-  --alta: #c41230; /* rojo corazón */
-  --media: #e2627b; /* rosa fuerte */
-  --baja: #a58177; /* cacao */
-  --rosa: #f4a6bc; /* rosa del marco */
+  --paper: #fbfbf7; /* blanco papel cuadriculado */
+  --ink: #2e3237; /* gris tinta del trazo */
+  --faint: #8b9097; /* gris lápiz */
+  --rule: #e2e5e9; /* línea de la cuadrícula */
+  --panel: #ffffff; /* papel elevado para inputs */
+  --alta: #3e4e72; /* azul del paraguas */
+  --media: #7e93bc; /* azul acero */
+  --baja: #a9afb8; /* gris suave */
+  --acento: #c9d6ec; /* azul pálido (selección) */
 }
 
 @theme inline {
@@ -21,7 +21,7 @@
   --color-alta: var(--alta);
   --color-media: var(--media);
   --color-baja: var(--baja);
-  --color-rosa: var(--rosa);
+  --color-acento: var(--acento);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
   --font-display: var(--font-caveat);
@@ -37,19 +37,21 @@ body {
   font-family: var(--font-sans), system-ui, sans-serif;
 }
 
-/* Fondo: el marco de corazones, completo y fijo.
-   ::before fijo porque iOS ignora background-attachment: fixed.
-   Para un futuro selector de temas: basta cambiar esta imagen
-   y las variables de :root según [data-theme]. */
+/* Fondo: Totoro en papel cuadriculado.
+   cover + anclado abajo-izquierda: conserva proporciones y
+   Totoro siempre visible. ::before fijo porque iOS ignora
+   background-attachment: fixed.
+   Para el futuro selector de temas: cambiar imagen y variables
+   de :root según [data-theme]. */
 body::before {
   content: "";
   position: fixed;
   inset: 0;
   z-index: -1;
-  background: url("/background.jpeg") center / 100% 100% no-repeat;
+  background: url("/background-totoro.jpeg") left bottom / cover no-repeat;
 }
 
 ::selection {
-  background: var(--rosa);
+  background: var(--acento);
   color: var(--ink);
 }

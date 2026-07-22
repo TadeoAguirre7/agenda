@@ -18,7 +18,7 @@ const META: Record<Categoria, { label: string; color: string }> = {
   pelis: { label: "Pelis", color: "var(--alta)" },
   series: { label: "Series", color: "var(--media)" },
   musica: { label: "Música", color: "var(--baja)" },
-  libros: { label: "Libros", color: "#6366f1" },
+  libros: { label: "Libros", color: "#6e83ad" },
 };
 
 export default function Entretenimiento({
@@ -119,7 +119,7 @@ export default function Entretenimiento({
   }
 
   return (
-    <main className="mx-auto max-w-2xl px-10 pb-24 pt-10 sm:pt-16">
+    <main className="mx-auto max-w-2xl px-5 pb-24 pt-10 sm:px-8 sm:pt-16">
       <section className="mb-12">
         <div className="flex items-center gap-3 border-b border-ink/80 pb-2">
           <input

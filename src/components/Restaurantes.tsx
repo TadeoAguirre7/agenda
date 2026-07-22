@@ -15,10 +15,10 @@ export type RestaurantItem = {
 const CATEGORIAS: Categoria[] = ["restaurantes", "cafes", "bares", "dulces"];
 
 const META: Record<Categoria, { label: string; color: string }> = {
-  restaurantes: { label: "Restaurantes", color: "#c2410c" },
-  cafes: { label: "Cafés", color: "#92400e" },
-  bares: { label: "Bares", color: "#7c3aed" },
-  dulces: { label: "Dulces", color: "#db2777" },
+  restaurantes: { label: "Restaurantes", color: "#3e4e72" },
+  cafes: { label: "Cafés", color: "#5e7396" },
+  bares: { label: "Bares", color: "#8fa3c8" },
+  dulces: { label: "Dulces", color: "#b9c4d8" },
 };
 
 export default function Restaurantes({
@@ -119,7 +119,7 @@ export default function Restaurantes({
   }
 
   return (
-    <main className="mx-auto max-w-2xl px-10 pb-24 pt-10 sm:pt-16">
+    <main className="mx-auto max-w-2xl px-5 pb-24 pt-10 sm:px-8 sm:pt-16">
       <section className="mb-12">
         <div className="flex items-center gap-3 border-b border-ink/80 pb-2">
           <input

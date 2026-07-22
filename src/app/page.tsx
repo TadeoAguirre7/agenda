@@ -77,7 +77,7 @@ export default async function Home() {
     <div>
       <TabsManager />
       <header className="sticky top-0 z-10 border-b border-rule bg-paper/95 backdrop-blur">
-        <div className="mx-auto max-w-2xl px-10">
+        <div className="mx-auto max-w-2xl px-5 sm:px-8">
           <div className="flex items-center justify-between py-3">
             <nav className="flex gap-1">
               <button

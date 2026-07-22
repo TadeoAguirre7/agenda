@@ -316,7 +316,7 @@ export default function Agenda({ initial }: { initial: Task[] }) {
   }
 
   return (
-    <main className="mx-auto max-w-2xl px-10 pb-24 pt-6 sm:pt-10">
+    <main className="mx-auto max-w-2xl px-5 pb-24 pt-6 sm:px-8 sm:pt-10">
       {/* Composer */}
       <section className="mb-12">
         <div className="flex items-center gap-3 border-b border-ink/80 pb-2">
