@@ -119,6 +119,18 @@ function toLocalISO(isoDate: string, hm: string): string {
   return `${isoDate}T${hm}:00${sign}${offH}:${offM}`;
 }
 
+// Valores iniciales para el editor de una tarea
+function inicialesEdicion(t: Task): { dia: string; hora: string } {
+  if (t.recordatorioAt) {
+    const d = new Date(t.recordatorioAt);
+    return {
+      dia: `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()}`,
+      hora: `${pad(d.getHours())}:${pad(d.getMinutes())}`,
+    };
+  }
+  return { dia: "", hora: t.hora ?? "" };
+}
+
 // hora efectiva de la tarea: el campo hora o la del recordatorio
 function horaDe(t: Task): string | null {
   if (t.hora) return t.hora;
@@ -201,8 +213,15 @@ export default function Agenda({
   const [scheduleDia, setScheduleDia] = useState("");
   const [scheduleHora, setScheduleHora] = useState("");
 
+  const [editandoId, setEditandoId] = useState<string | null>(null);
+  const [editTitulo, setEditTitulo] = useState("");
+  const [editPrioridad, setEditPrioridad] = useState<Prioridad>("media");
+  const [editDia, setEditDia] = useState("");
+  const [editHora, setEditHora] = useState("");
+
   const composerDateRef = useRef<HTMLInputElement>(null);
   const scheduleDateRef = useRef<HTMLInputElement>(null);
+  const editDateRef = useRef<HTMLInputElement>(null);
 
   const hoyDate = new Date();
   const hoy = diaStr(hoyDate);
@@ -357,9 +376,184 @@ export default function Agenda({
     );
   }
 
+  function abrirEdicion(t: Task) {
+    setEditandoId(t.id);
+    setEditTitulo(t.titulo);
+    setEditPrioridad(t.prioridad);
+    const { dia, hora } = inicialesEdicion(t);
+    setEditDia(dia);
+    setEditHora(hora);
+  }
+
+  function guardarEdicionItem(t: Task) {
+    const recurrente = esRecurrente(t);
+    const patchData: Partial<Task> = {
+      titulo: editTitulo.trim(),
+      prioridad: editPrioridad,
+    };
+    const fechaValida = parseFecha(editDia);
+
+    if (recurrente) {
+      patchData.hora = HORA_HM_RE.test(editHora) ? editHora : null;
+      patchData.recordatorioAt = null;
+    } else {
+      if (fechaValida) {
+        patchData.recordatorioAt = toLocalISO(
+          fechaValida,
+          HORA_HM_RE.test(editHora) ? editHora : "09:00",
+        );
+        patchData.hora = null;
+      } else if (HORA_HM_RE.test(editHora)) {
+        patchData.hora = editHora;
+        patchData.recordatorioAt = null;
+      } else {
+        patchData.hora = null;
+        patchData.recordatorioAt = null;
+      }
+    }
+
+    patch(t.id, patchData);
+    setEditandoId(null);
+    setEditDia("");
+    setEditHora("");
+  }
+
   function renderItem(t: Task) {
     const recurrente = esRecurrente(t);
     const doneToday = recurrente && hechaHoy(t, hoy);
+
+    if (editandoId === t.id) {
+      const fechaValida = parseFecha(editDia);
+      return (
+        <li
+          key={t.id}
+          className="border-l-3 py-3 pl-4"
+          style={{ borderColor: META[t.prioridad].color }}
+        >
+          <div className="space-y-3">
+            <input
+              autoFocus
+              value={editTitulo}
+              onChange={(e) => setEditTitulo(e.target.value)}
+              placeholder="Título de la tarea…"
+              className="w-full rounded-md border border-rule bg-panel px-3 py-1.5 font-sans text-ink outline-none placeholder:text-faint/60 focus:border-ink"
+            />
+
+            <div className="flex flex-wrap items-center gap-2">
+              {PRIORIDADES.map((p) => {
+                const on = editPrioridad === p;
+                return (
+                  <button
+                    key={p}
+                    type="button"
+                    onClick={() => setEditPrioridad(p)}
+                    className="rounded-full border px-3 py-1 font-mono text-xs uppercase tracking-wider transition"
+                    style={{
+                      borderColor: on ? META[p].color : "var(--rule)",
+                      color: on ? META[p].color : "var(--faint)",
+                      background: on ? `${META[p].color}12` : "transparent",
+                    }}
+                  >
+                    {META[p].label}
+                  </button>
+                );
+              })}
+            </div>
+
+            {!recurrente && (
+              <div className="flex flex-wrap items-center gap-2">
+                <input
+                  type="date"
+                  ref={editDateRef}
+                  className="sr-only"
+                  onChange={(e) => {
+                    const iso = e.target.value;
+                    if (iso) {
+                      const [yyyy, mm, dd] = iso.split("-");
+                      setEditDia(`${dd}/${mm}/${yyyy}`);
+                    }
+                  }}
+                />
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  placeholder="DD/MM/AAAA"
+                  value={editDia}
+                  onChange={(e) => setEditDia(e.target.value)}
+                  className={`w-32 rounded-md border bg-panel px-3 py-1.5 font-mono text-sm text-ink outline-none placeholder:text-faint/60 focus:border-ink ${
+                    fechaValida === null && editDia.trim() !== ""
+                      ? "border-alta"
+                      : "border-rule"
+                  }`}
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (editDateRef.current?.showPicker) {
+                      editDateRef.current.showPicker();
+                    } else {
+                      editDateRef.current?.click();
+                    }
+                  }}
+                  className="rounded-md border border-rule px-2 py-1.5 font-mono text-sm text-faint transition hover:border-ink hover:text-ink"
+                  aria-label="Abrir calendario"
+                  title="Abrir calendario"
+                >
+                  📅
+                </button>
+                <input
+                  type="time"
+                  value={editHora}
+                  onChange={(e) => setEditHora(e.target.value)}
+                  className="rounded-md border border-rule bg-panel px-3 py-1.5 font-mono text-sm text-ink outline-none focus:border-ink"
+                />
+                {fechaValida === null && editDia.trim() !== "" && (
+                  <span className="font-mono text-[10px] uppercase tracking-wider text-alta">
+                    formato: DD/MM/AAAA
+                  </span>
+                )}
+              </div>
+            )}
+
+            {recurrente && (
+              <div className="flex flex-wrap items-center gap-2">
+                <label className="font-mono text-[10px] uppercase tracking-wider text-faint">
+                  hora
+                </label>
+                <input
+                  type="time"
+                  value={editHora}
+                  onChange={(e) => setEditHora(e.target.value)}
+                  className="rounded-md border border-rule bg-panel px-3 py-1.5 font-mono text-sm text-ink outline-none focus:border-ink"
+                />
+              </div>
+            )}
+
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => guardarEdicionItem(t)}
+                disabled={!editTitulo.trim()}
+                className="rounded-full bg-ink px-4 py-1.5 font-mono text-xs uppercase tracking-wider text-paper transition disabled:opacity-25"
+              >
+                Guardar
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setEditandoId(null);
+                  setEditDia("");
+                  setEditHora("");
+                }}
+                className="font-mono text-xs uppercase tracking-wider text-faint underline-offset-4 hover:underline"
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </li>
+      );
+    }
 
     return (
       <li
@@ -367,6 +561,16 @@ export default function Agenda({
         className="group flex items-center gap-3 border-l-3 py-2 pl-4"
         style={{ borderColor: META[t.prioridad].color }}
       >
+        <button
+          type="button"
+          aria-label="Editar"
+          title="Editar"
+          onClick={() => abrirEdicion(t)}
+          className="shrink-0 font-mono text-sm text-faint/80 transition hover:text-ink"
+        >
+          ✏️
+        </button>
+
         {doneToday ? (
           <button
             aria-label="Reabrir"
