@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import ColorDot from "@/components/ColorDot";
 
 export type Prioridad = "alta" | "media" | "baja";
@@ -99,6 +99,25 @@ function parseFecha(str: string): string | null {
   return `${m[3]}-${m[2]}-${m[1]}`;
 }
 
+// "YYYY-MM-DD" + "HH:MM" -> ISO string con offset local para evitar
+// que el server (UTC) desplace la hora al guardar.
+function toLocalISO(isoDate: string, hm: string): string {
+  const [yyyy, mm, dd] = isoDate.split("-");
+  const [h, m] = hm.split(":");
+  const d = new Date(
+    Number(yyyy),
+    Number(mm) - 1,
+    Number(dd),
+    Number(h),
+    Number(m),
+  );
+  const offsetMin = -d.getTimezoneOffset();
+  const sign = offsetMin >= 0 ? "+" : "-";
+  const offH = pad(Math.floor(Math.abs(offsetMin) / 60));
+  const offM = pad(Math.abs(offsetMin) % 60);
+  return `${isoDate}T${hm}:00${sign}${offH}:${offM}`;
+}
+
 // hora efectiva de la tarea: el campo hora o la del recordatorio
 function horaDe(t: Task): string | null {
   if (t.hora) return t.hora;
@@ -172,6 +191,9 @@ export default function Agenda({
   const [scheduleDia, setScheduleDia] = useState("");
   const [scheduleHora, setScheduleHora] = useState("");
 
+  const composerDateRef = useRef<HTMLInputElement>(null);
+  const scheduleDateRef = useRef<HTMLInputElement>(null);
+
   const hoyDate = new Date();
   const hoy = diaStr(hoyDate);
 
@@ -195,7 +217,7 @@ export default function Agenda({
     const iso = parseFecha(recordatorioDia);
     if (!iso) return null;
     const hm = HORA_HM_RE.test(recordatorioHora) ? recordatorioHora : "09:00";
-    return `${iso}T${hm}`;
+    return toLocalISO(iso, hm);
   }
 
   async function crear() {
@@ -395,6 +417,18 @@ export default function Agenda({
             {scheduleId === t.id ? (
               <div className="flex flex-wrap items-center gap-2">
                 <input
+                  type="date"
+                  ref={scheduleDateRef}
+                  className="sr-only"
+                  onChange={(e) => {
+                    const iso = e.target.value;
+                    if (iso) {
+                      const [yyyy, mm, dd] = iso.split("-");
+                      setScheduleDia(`${dd}/${mm}/${yyyy}`);
+                    }
+                  }}
+                />
+                <input
                   type="text"
                   inputMode="numeric"
                   placeholder="DD/MM/AAAA"
@@ -402,6 +436,21 @@ export default function Agenda({
                   onChange={(e) => setScheduleDia(e.target.value)}
                   className="w-28 rounded-md border border-rule bg-panel px-2 py-1 font-mono text-xs text-ink outline-none placeholder:text-faint/60 focus:border-ink"
                 />
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (scheduleDateRef.current?.showPicker) {
+                      scheduleDateRef.current.showPicker();
+                    } else {
+                      scheduleDateRef.current?.click();
+                    }
+                  }}
+                  className="rounded-md border border-rule px-2 py-1 font-mono text-xs text-faint transition hover:border-ink hover:text-ink"
+                  aria-label="Abrir calendario"
+                  title="Abrir calendario"
+                >
+                  📅
+                </button>
                 <input
                   type="time"
                   value={scheduleHora}
@@ -415,7 +464,7 @@ export default function Agenda({
                       const hm = HORA_HM_RE.test(scheduleHora)
                         ? scheduleHora
                         : "09:00";
-                      patch(t.id, { recordatorioAt: `${iso}T${hm}` });
+                      patch(t.id, { recordatorioAt: toLocalISO(iso, hm) });
                       setScheduleId(null);
                       setScheduleDia("");
                       setScheduleHora("");
@@ -533,6 +582,18 @@ export default function Agenda({
             </label>
             <div className="mt-1 flex flex-wrap items-center gap-2">
               <input
+                type="date"
+                ref={composerDateRef}
+                className="sr-only"
+                onChange={(e) => {
+                  const iso = e.target.value;
+                  if (iso) {
+                    const [yyyy, mm, dd] = iso.split("-");
+                    setRecordatorioDia(`${dd}/${mm}/${yyyy}`);
+                  }
+                }}
+              />
+              <input
                 type="text"
                 inputMode="numeric"
                 placeholder="DD/MM/AAAA"
@@ -542,6 +603,21 @@ export default function Agenda({
                   fechaInvalida ? "border-alta" : "border-rule"
                 }`}
               />
+              <button
+                type="button"
+                onClick={() => {
+                  if (composerDateRef.current?.showPicker) {
+                    composerDateRef.current.showPicker();
+                  } else {
+                    composerDateRef.current?.click();
+                  }
+                }}
+                className="rounded-md border border-rule px-2 py-1.5 font-mono text-sm text-faint transition hover:border-ink hover:text-ink"
+                aria-label="Abrir calendario"
+                title="Abrir calendario"
+              >
+                📅
+              </button>
               <input
                 type="time"
                 value={recordatorioHora}
