@@ -52,8 +52,8 @@ export default function TabsShell({
       <div>
         <header className="sticky top-0 z-10 border-b border-rule bg-paper/95 backdrop-blur">
           <div className="mx-auto max-w-2xl px-5 sm:px-8">
-            <div className="flex items-center justify-between gap-3 py-3">
-              <nav className="flex shrink-0 gap-1 overflow-x-auto">
+            <div className="flex items-center justify-between gap-3 overflow-x-auto py-3">
+              <nav className="flex shrink-0 gap-1">
                 {TABS.map((tab) => (
                   <button
                     key={tab.id}

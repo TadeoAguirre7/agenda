@@ -144,7 +144,9 @@ export default function SettingsPanel() {
         ⚙
       </button>
       {open && (
-        <div className="absolute right-0 top-full z-50 mt-2 w-56 rounded-md border border-rule bg-panel p-4 shadow-lg">
+        <>
+        <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
+        <div className="fixed right-4 top-14 z-50 w-56 rounded-md border border-rule bg-panel p-4 shadow-lg">
           <div className="mb-3 flex items-baseline justify-between">
             <span className="font-mono text-xs uppercase tracking-wider text-ink">
               Ajustes
@@ -214,6 +216,7 @@ export default function SettingsPanel() {
             Se guarda en este dispositivo
           </p>
         </div>
+        </>
       )}
     </div>
   );
