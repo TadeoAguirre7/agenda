@@ -65,7 +65,7 @@ export default function RootLayout({
           dangerouslySetInnerHTML={{
             __html: `
               (function() {
-                const s = localStorage.getItem('font-size');
+                var s = localStorage.getItem('font-size');
                 if (s === 'small') document.documentElement.classList.add('text-sm');
                 else if (s === 'large') document.documentElement.classList.add('text-lg');
                 else document.documentElement.classList.add('text-base');
@@ -75,6 +75,18 @@ export default function RootLayout({
         />
       </head>
       <body className="min-h-full">
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              (function() {
+                try {
+                  var bg = localStorage.getItem('bg-image');
+                  if (bg) document.body.style.setProperty('--bg-custom', 'url(' + bg + ')');
+                } catch(e) {}
+              })();
+            `,
+          }}
+        />
         {children}
         <ServiceWorkerRegister />
       </body>

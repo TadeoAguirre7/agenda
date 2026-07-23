@@ -44,19 +44,17 @@ body {
   font-weight: 500;
 }
 
-/* Fondo: marco de estrellas de colores sobre crema.
-   ::before fijo porque iOS ignora background-attachment: fixed.
-   Para el futuro selector de temas: cambiar imagen y variables
-   de :root según [data-theme]. */
+/* Fondo: custom (si hay) o estrellas por defecto.
+   ::before fijo porque iOS ignora background-attachment: fixed. */
 body::before {
   content: "";
   position: fixed;
   inset: 0;
   z-index: -1;
-  background: url("/background-stars.jpeg") center / cover no-repeat;
+  background: var(--bg-custom, url("/background-stars.jpeg")) center / cover no-repeat;
 }
 
-/* Mobile: atenuar el fondo para que las estrellas no tapen el texto */
+/* Mobile: atenuar el fondo para legibilidad */
 @media (max-width: 640px) {
   body::before {
     opacity: 0.35;
