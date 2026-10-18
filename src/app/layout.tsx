@@ -45,6 +45,7 @@ export default function RootLayout({
   return (
     <html
       lang="es"
+      suppressHydrationWarning
       className={`${geistSans.variable} ${geistMono.variable} ${caveat.variable} h-full antialiased`}
     >
       <head>
@@ -53,10 +54,11 @@ export default function RootLayout({
           dangerouslySetInnerHTML={{
             __html: `
               // En desarrollo desregistramos SW para evitar problemas con HMR
-              if (window.location.hostname === 'localhost' && navigator.serviceWorker) {
+              if (${JSON.stringify(process.env.NODE_ENV !== "production")} && navigator.serviceWorker) {
                 navigator.serviceWorker.getRegistrations().then(function(regs) {
                   regs.forEach(function(r) { r.unregister(); });
                 });
+                if (window.caches) caches.keys().then(function(ks) { ks.forEach(function(k) { caches.delete(k); }); });
               }
             `,
           }}

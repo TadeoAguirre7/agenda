@@ -280,24 +280,26 @@ export default function Entretenimiento({
 
         return (
           <section key={c} className="mb-9">
-            <button
-              onClick={() =>
-                setSeccionesOpen((prev) => ({ ...prev, [c]: !prev[c] }))
-              }
-              className="mb-2 flex w-full items-baseline gap-3 font-mono text-xs uppercase tracking-[0.2em] transition hover:opacity-70"
+            <div
+              className="mb-2 flex items-center gap-3"
               style={{ color: META[c].color }}
             >
-              <span>{META[c].label}</span>
-              <span>{catItems.length.toString().padStart(2, "0")}</span>
-              <span>{isOpen ? "−" : "+"}</span>
-              <span className="ml-auto">
-                <ColorDot
-                  color={META[c].color}
-                  onChange={(color) => guardarColor(c, color)}
-                  label={META[c].label}
-                />
-              </span>
-            </button>
+              <button
+                onClick={() =>
+                  setSeccionesOpen((prev) => ({ ...prev, [c]: !prev[c] }))
+                }
+                className="flex flex-1 items-baseline gap-3 font-mono text-xs uppercase tracking-[0.2em] transition hover:opacity-70"
+              >
+                <span>{META[c].label}</span>
+                <span>{catItems.length.toString().padStart(2, "0")}</span>
+                <span>{isOpen ? "−" : "+"}</span>
+              </button>
+              <ColorDot
+                color={META[c].color}
+                onChange={(color) => guardarColor(c, color)}
+                label={META[c].label}
+              />
+            </div>
 
             <div className={isOpen ? "block" : "hidden"}>
               {catItems.length === 0 ? (

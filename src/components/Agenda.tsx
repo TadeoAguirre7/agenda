@@ -1,8 +1,14 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import ColorDot from "@/components/ColorDot";
 import AnalogTimePicker from "@/components/AnalogTimePicker";
+import DayTimeline, { BotonEliminar } from "@/components/DayTimeline";
+import MiniCalendar from "@/components/MiniCalendar";
+import DuracionPicker, {
+  fmtDuracion,
+  TrazoDuracion,
+} from "@/components/DuracionPicker";
 import { useDateContext } from "@/components/DateContext";
 
 export type Prioridad = "alta" | "media" | "baja";
@@ -18,6 +24,7 @@ export type Task = {
   completada: boolean;
   completadaAt: string | null;
   hora: string | null;
+  duracionMin: number | null;
   recurrencia: Recurrencia;
   intervaloDias: number | null;
   diasSemana: string | null;
@@ -25,7 +32,12 @@ export type Task = {
 };
 
 const PRIORIDADES: Prioridad[] = ["alta", "media", "baja"];
-const RECURRENCIAS: Recurrencia[] = ["ninguna", "diaria", "intervalo", "semanal"];
+const RECURRENCIAS: Recurrencia[] = [
+  "ninguna",
+  "diaria",
+  "intervalo",
+  "semanal",
+];
 
 const DEFAULT_META: Record<Prioridad, { label: string; color: string }> = {
   alta: { label: "Alta", color: "#3e4e72" },
@@ -73,7 +85,7 @@ function fmtHora(iso: string | null): string | null {
   return new Intl.DateTimeFormat("es-AR", {
     hour: "2-digit",
     minute: "2-digit",
-    hour12: false,
+    hourCycle: "h23",
   }).format(d);
 }
 
@@ -144,8 +156,8 @@ function inicialesEdicion(t: Task): { dia: string; hora: string } {
 
 // hora efectiva de la tarea: el campo hora o la del recordatorio
 function horaDe(t: Task): string | null {
-  if (t.hora) return t.hora;
-  return fmtHora(t.recordatorioAt);
+  if (t.recordatorioAt) return fmtHora(t.recordatorioAt);
+  return t.hora;
 }
 
 // con hora primero, ordenadas de mas temprana a mas tarde; sin hora al final
@@ -155,6 +167,49 @@ function ordenarPorHora(items: Task[]): Task[] {
     .sort((a, b) => horaDe(a)!.localeCompare(horaDe(b)!));
   const sin = items.filter((t) => !horaDe(t));
   return [...con, ...sin];
+}
+
+function minutos(hm: string): number {
+  const [h, m] = hm.split(":").map(Number);
+  return h * 60 + m;
+}
+
+// rango [inicio, fin) en minutos; sin duración cuenta como 1 minuto.
+// Una tarea con fecha pero sin hora elegida (09:00 implícito del recordatorio)
+// no tiene rango: `hora` guarda la hora elegida explícitamente.
+function rango(t: Task): [number, number] | null {
+  if (t.recordatorioAt && !t.hora && !t.duracionMin) return null;
+  const h = horaDe(t);
+  if (!h) return null;
+  const ini = minutos(h);
+  return [ini, ini + Math.max(t.duracionMin ?? 0, 1)];
+}
+
+// `desfaseB` corre el rango de b en minutos (±1440 = día anterior/siguiente)
+function seSuperponen(a: Task, b: Task, desfaseB = 0): boolean {
+  const ra = rango(a);
+  const rb = rango(b);
+  if (!ra || !rb) return false;
+  return ra[0] < rb[1] + desfaseB && rb[0] + desfaseB < ra[1];
+}
+
+// hora de fin "HH:MM" (puede pasar la medianoche)
+function finDe(t: Task): string | null {
+  const h = horaDe(t);
+  if (!h || !t.duracionMin) return null;
+  const fin = (minutos(h) + t.duracionMin) % 1440;
+  return `${pad(Math.floor(fin / 60))}:${pad(fin % 60)}`;
+}
+
+function sumarDias(dia: string, n: number): string {
+  const d = new Date(dia + "T12:00:00");
+  d.setDate(d.getDate() + n);
+  return diaStr(d);
+}
+
+// día ("YYYY-MM-DD") en el que cae una tarea no recurrente
+function diaDeTarea(t: Task, diaPorDefecto: string): string {
+  return t.recordatorioAt ? diaStr(new Date(t.recordatorioAt)) : diaPorDefecto;
 }
 
 function hechaHoy(t: Task, hoy: string): boolean {
@@ -245,6 +300,42 @@ export default function Agenda({
   const [horaOpen, setHoraOpen] = useState(false);
   const [hora, setHora] = useState("");
   const [hechasOpen, setHechasOpen] = useState(false);
+  const [duracion, setDuracion] = useState<number | null>(null);
+  const [aBorrar, setABorrar] = useState<Task | null>(null);
+  // calendario propio para los campos de fecha (el nativo no se cerraba)
+  const [cal, setCal] = useState<{
+    campo: "edit" | "schedule" | "composer";
+    anchor: DOMRect;
+  } | null>(null);
+  const cerrarCal = useCallback(() => setCal(null), []);
+
+  function abrirCal(
+    campo: "edit" | "schedule" | "composer",
+    e: React.MouseEvent<HTMLElement>,
+  ) {
+    const anchor = e.currentTarget.getBoundingClientRect();
+    setCal((prev) => (prev?.campo === campo ? null : { campo, anchor }));
+  }
+
+  function valorCal(campo: "edit" | "schedule" | "composer"): string {
+    const txt =
+      campo === "edit" ? editDia : campo === "schedule" ? scheduleDia : recordatorioDia;
+    return parseFecha(txt) ?? diaVisto;
+  }
+
+  function elegirCal(iso: string) {
+    if (!cal) return;
+    const [yyyy, mm, dd] = iso.split("-");
+    const txt = `${dd}/${mm}/${yyyy}`;
+    if (cal.campo === "edit") setEditDia(txt);
+    else if (cal.campo === "schedule") setScheduleDia(txt);
+    else setRecordatorioDia(txt);
+  }
+  const [confirmar, setConfirmar] = useState<{
+    titulo: string;
+    choques: Task[];
+    onOk: () => void;
+  } | null>(null);
 
   async function guardarColor(prioridad: Prioridad, color: string) {
     setColores((prev) => ({ ...prev, [prioridad]: color }));
@@ -265,13 +356,29 @@ export default function Agenda({
   const [editPrioridad, setEditPrioridad] = useState<Prioridad>("media");
   const [editDia, setEditDia] = useState("");
   const [editHora, setEditHora] = useState("");
-  const [editRecurrencia, setEditRecurrencia] = useState<Recurrencia>("ninguna");
+  const [editRecurrencia, setEditRecurrencia] =
+    useState<Recurrencia>("ninguna");
   const [editIntervalo, setEditIntervalo] = useState(2);
   const [editDiasSel, setEditDiasSel] = useState<number[]>([]);
+  const [editDuracion, setEditDuracion] = useState<number | null>(null);
 
-  const composerDateRef = useRef<HTMLInputElement>(null);
-  const scheduleDateRef = useRef<HTMLInputElement>(null);
-  const editDateRef = useRef<HTMLInputElement>(null);
+  // tempId -> promesa con el id real (para acciones antes de que vuelva el POST)
+  const creando = useRef(new Map<string, Promise<string | null>>());
+  // último request por tarea: respuestas viejas no pisan estado nuevo
+  const seq = useRef(new Map<string, number>());
+  const tempSeq = useRef(0);
+
+  async function idReal(id: string): Promise<string | null> {
+    if (!id.startsWith("local-")) return id;
+    return (await creando.current.get(id)) ?? null;
+  }
+
+  function avisarError() {
+    window.alert(
+      "No se pudo guardar el cambio. Revisá tu conexión e intentá de nuevo.",
+    );
+  }
+
 
   const hoyDate = new Date();
   const hoy = diaStr(hoyDate);
@@ -292,20 +399,58 @@ export default function Agenda({
   const tareasDiaPendientes = ordenarPorHora(
     tasks.filter(
       (t) =>
-        esHoy(t, diaVisto, diaVistoDow) && !esHechaHoy(t, diaVisto),
+        esHoy(t, diaVisto, diaVistoDow) &&
+        !esHechaHoy(t, diaVisto) &&
+        (esRecurrente(t) || !t.completada),
     ),
   );
   const tareasDiaHechas = ordenarPorHora(
     tasks.filter((t) => esHechaHoy(t, diaVisto)),
   );
+  // ids de tareas del día que se pisan con otra
+  const superpuestas = new Set<string>();
+  tareasDiaPendientes.forEach((a, i) =>
+    tareasDiaPendientes.slice(i + 1).forEach((b) => {
+      if (seSuperponen(a, b)) {
+        superpuestas.add(a.id);
+        superpuestas.add(b.id);
+      }
+    }),
+  );
+
+  // tareas activas que chocan con `cand` en su día (excluyendo a sí misma)
+  function choquesCon(cand: Task): Task[] {
+    if (!rango(cand)) return [];
+    const dias =
+      cand.recurrencia === "ninguna"
+        ? [diaDeTarea(cand, diaVisto)]
+        : [diaVisto];
+    const activaEn = (o: Task, d: string) => {
+      const dow = new Date(d + "T12:00:00").getDay();
+      return (
+        esHoy(o, d, dow) &&
+        !esHechaHoy(o, d) &&
+        (o.recurrencia !== "ninguna" || !o.completada) &&
+        (o.recurrencia !== "ninguna" || diaDeTarea(o, d) === d)
+      );
+    };
+    // también contra el día anterior/siguiente (cruce de medianoche)
+    return tasks.filter((o) => {
+      if (o.id === cand.id) return false;
+      return dias.some((d) =>
+        [-1, 0, 1].some(
+          (n) =>
+            activaEn(o, sumarDias(d, n)) && seSuperponen(cand, o, n * 1440),
+        ),
+      );
+    });
+  }
+
   const pendientesSinAgendar = viendoHoy
     ? ordenarPorHora(
         tasks.filter(
           (t) =>
-            !t.completada &&
-            !esRecurrente(t) &&
-            !t.recordatorioAt &&
-            !t.hora,
+            !t.completada && !esRecurrente(t) && !t.recordatorioAt && !t.hora,
         ),
       )
     : [];
@@ -320,16 +465,22 @@ export default function Agenda({
   function recordatorioISO(): string | null {
     const iso = parseFecha(recordatorioDia);
     if (!iso) return null;
-    const hm = HORA_HM_RE.test(recordatorioHora) ? recordatorioHora : "09:00";
-    return toLocalISO(iso, hm);
+    return toLocalISO(iso, horaElegida() ?? "09:00");
   }
 
-  async function crear() {
+  function horaElegida(): string | null {
+    if (HORA_HM_RE.test(recordatorioHora)) return recordatorioHora;
+    if (HORA_HM_RE.test(hora)) return hora;
+    return null;
+  }
+
+  async function crear(forzar = false) {
     const t = titulo.trim();
     if (!t) return;
     if (recurrencia === "semanal" && diasSel.length === 0) return;
 
-    const tempId = "local-" + Date.now();
+    tempSeq.current += 1;
+    const tempId = `local-${tempSeq.current}`;
     const optimista: Task = {
       id: tempId,
       titulo: t,
@@ -339,7 +490,8 @@ export default function Agenda({
       recordatorioAt: esRecurrenteActiva ? null : recordatorioISO(),
       completada: false,
       completadaAt: null,
-      hora: hora || null,
+      hora: horaElegida(),
+      duracionMin: duracion,
       recurrencia,
       intervaloDias: recurrencia === "intervalo" ? intervaloDias : null,
       diasSemana:
@@ -351,6 +503,13 @@ export default function Agenda({
           : null,
       ultimaHechaDia: null,
     };
+    if (!forzar) {
+      const choques = choquesCon(optimista);
+      if (choques.length > 0) {
+        setConfirmar({ titulo: t, choques, onOk: () => crear(true) });
+        return;
+      }
+    }
     setTasks((prev) => [...prev, optimista]);
     setTitulo("");
     setRecordatorioDia("");
@@ -362,6 +521,10 @@ export default function Agenda({
     setDiasSel([]);
     setHoraOpen(false);
     setHora("");
+    setDuracion(null);
+
+    let resolver: (id: string | null) => void = () => {};
+    creando.current.set(tempId, new Promise((ok) => (resolver = ok)));
 
     const res = await fetch("/api/tasks", {
       method: "POST",
@@ -371,36 +534,94 @@ export default function Agenda({
         prioridad,
         recordatorioAt: optimista.recordatorioAt,
         hora: optimista.hora,
+        duracionMin: optimista.duracionMin,
         recurrencia: optimista.recurrencia,
         intervaloDias: optimista.intervaloDias,
         diasSemana: optimista.diasSemana,
       }),
-    });
+    }).catch(() => null);
 
-    if (res.ok) {
-      const data = await res.json();
-      if (!data.offline) {
-        setTasks((prev) =>
-          prev.map((task) => (task.id === tempId ? normalize(data) : task)),
-        );
-      }
+    const data = res?.ok ? await res.json().catch(() => null) : null;
+    if (!data) {
+      setTasks((prev) => prev.filter((task) => task.id !== tempId));
+      resolver(null);
+      creando.current.delete(tempId);
+      avisarError();
+      return;
     }
+    if (data.offline) {
+      resolver(null);
+      return;
+    }
+    const real = normalize(data);
+    // conservar cambios locales hechos mientras se creaba (se envían aparte)
+    setTasks((prev) =>
+      prev.map((task) =>
+        task.id === tempId
+          ? { ...real, ...cambiosLocales(task, optimista), id: real.id }
+          : task,
+      ),
+    );
+    resolver(real.id);
+    creando.current.delete(tempId);
   }
 
   async function patch(id: string, data: Partial<Task>) {
-    setTasks((prev) =>
-      prev.map((t) => (t.id === id ? { ...t, ...data } : t)),
-    );
-    await fetch(`/api/tasks/${id}`, {
+    const local: Partial<Task> = { ...data };
+    if ("completada" in data) {
+      // completada desde otro día: registrarla en el día que se está viendo
+      const at = data.completada
+        ? viendoHoy
+          ? new Date().toISOString()
+          : new Date(diaVisto + "T12:00:00").toISOString()
+        : null;
+      local.completadaAt = at;
+      data = { ...data, completadaAt: at };
+    }
+    const antes = tasks.find((t) => t.id === id);
+    setTasks((prev) => prev.map((t) => (t.id === id ? { ...t, ...local } : t)));
+
+    const real = await idReal(id);
+    if (!real) return; // creación fallida (ya revertida) u offline
+    const n = (seq.current.get(real) ?? 0) + 1;
+    seq.current.set(real, n);
+
+    const res = await fetch(`/api/tasks/${real}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(data),
-    });
+    }).catch(() => null);
+    if (seq.current.get(real) !== n) return; // hay un request más nuevo
+
+    const saved = res?.ok ? await res.json().catch(() => null) : null;
+    if (saved?.id === real) {
+      setTasks((prev) =>
+        prev.map((t) => (t.id === real ? normalize(saved) : t)),
+      );
+    } else if (res && !res.ok) {
+      if (antes) {
+        setTasks((prev) =>
+          prev.map((t) =>
+            t.id === real || t.id === id ? { ...antes, id: t.id } : t,
+          ),
+        );
+      }
+      avisarError();
+    }
   }
 
   async function borrar(id: string) {
+    const antes = tasks;
     setTasks((prev) => prev.filter((t) => t.id !== id));
-    await fetch(`/api/tasks/${id}`, { method: "DELETE" });
+    const real = await idReal(id);
+    if (!real) return;
+    const res = await fetch(`/api/tasks/${real}`, { method: "DELETE" }).catch(
+      () => null,
+    );
+    if (res && !res.ok) {
+      setTasks(antes);
+      avisarError();
+    }
   }
 
   function guardarEdicion() {
@@ -442,13 +663,11 @@ export default function Agenda({
 
   function renderBorrar(t: Task) {
     return (
-      <button
-        aria-label="Borrar"
-        onClick={() => borrar(t.id)}
-        className="shrink-0 font-mono text-sm text-faint/80 transition hover:text-alta"
-      >
-        ✕
-      </button>
+      <BotonEliminar
+        titulo={t.titulo}
+        onClick={() => setABorrar(t)}
+        className="-my-2 w-9 self-stretch rounded-r-md"
+      />
     );
   }
 
@@ -461,21 +680,23 @@ export default function Agenda({
     setEditHora(hora);
     setEditRecurrencia(t.recurrencia);
     setEditIntervalo(t.intervaloDias ?? 2);
-    setEditDiasSel(
-      t.diasSemana ? t.diasSemana.split(",").map(Number) : [],
-    );
+    setEditDuracion(t.duracionMin);
+    setEditDiasSel(t.diasSemana ? t.diasSemana.split(",").map(Number) : []);
   }
 
-  function guardarEdicionItem(t: Task) {
+  function guardarEdicionItem(t: Task, forzar = false) {
     const patchData: Partial<Task> = {
       titulo: editTitulo.trim(),
       prioridad: editPrioridad,
+      duracionMin: editDuracion,
       recurrencia: editRecurrencia,
-      intervaloDias:
-        editRecurrencia === "intervalo" ? editIntervalo : null,
+      intervaloDias: editRecurrencia === "intervalo" ? editIntervalo : null,
       diasSemana:
         editRecurrencia === "semanal"
-          ? editDiasSel.slice().sort((a, b) => a - b).join(",")
+          ? editDiasSel
+              .slice()
+              .sort((a, b) => a - b)
+              .join(",")
           : null,
     };
     const fechaValida = parseFecha(editDia);
@@ -492,7 +713,7 @@ export default function Agenda({
           fechaValida,
           HORA_HM_RE.test(editHora) ? editHora : "09:00",
         );
-        patchData.hora = null;
+        patchData.hora = HORA_HM_RE.test(editHora) ? editHora : null;
       } else if (HORA_HM_RE.test(editHora)) {
         patchData.hora = editHora;
         patchData.recordatorioAt = null;
@@ -503,6 +724,17 @@ export default function Agenda({
       patchData.ultimaHechaDia = null;
     }
 
+    if (!forzar) {
+      const choques = choquesCon({ ...t, ...patchData });
+      if (choques.length > 0) {
+        setConfirmar({
+          titulo: patchData.titulo ?? t.titulo,
+          choques,
+          onOk: () => guardarEdicionItem(t, true),
+        });
+        return;
+      }
+    }
     patch(t.id, patchData);
     setEditandoId(null);
     setEditDia("");
@@ -559,14 +791,12 @@ export default function Agenda({
                 repetir
               </label>
               <div className="flex flex-wrap items-center gap-2">
-                {(
-                  [
-                    { r: "ninguna" as Recurrencia, label: "No" },
-                    { r: "diaria" as Recurrencia, label: "Cada día" },
-                    { r: "intervalo" as Recurrencia, label: "Cada X días" },
-                    { r: "semanal" as Recurrencia, label: "Días de la semana" },
-                  ]
-                ).map(({ r, label }) => {
+                {[
+                  { r: "ninguna" as Recurrencia, label: "No" },
+                  { r: "diaria" as Recurrencia, label: "Cada día" },
+                  { r: "intervalo" as Recurrencia, label: "Cada X días" },
+                  { r: "semanal" as Recurrencia, label: "Días de la semana" },
+                ].map(({ r, label }) => {
                   const on = editRecurrencia === r;
                   return (
                     <button
@@ -637,18 +867,6 @@ export default function Agenda({
             {editRecurrencia === "ninguna" && (
               <div className="flex flex-wrap items-center gap-2">
                 <input
-                  type="date"
-                  ref={editDateRef}
-                  className="sr-only"
-                  onChange={(e) => {
-                    const iso = e.target.value;
-                    if (iso) {
-                      const [yyyy, mm, dd] = iso.split("-");
-                      setEditDia(`${dd}/${mm}/${yyyy}`);
-                    }
-                  }}
-                />
-                <input
                   type="text"
                   inputMode="numeric"
                   placeholder="DD/MM/AAAA"
@@ -662,13 +880,7 @@ export default function Agenda({
                 />
                 <button
                   type="button"
-                  onClick={() => {
-                    if (editDateRef.current?.showPicker) {
-                      editDateRef.current.showPicker();
-                    } else {
-                      editDateRef.current?.click();
-                    }
-                  }}
+                  onClick={(e) => abrirCal("edit", e)}
                   className="rounded-md border border-rule px-2 py-1.5 font-mono text-sm text-faint transition hover:border-ink hover:text-ink"
                   aria-label="Abrir calendario"
                   title="Abrir calendario"
@@ -689,6 +901,7 @@ export default function Agenda({
                 onChange={(v) => setEditHora(v)}
                 label="hora"
               />
+              <DuracionPicker value={editDuracion} onChange={setEditDuracion} />
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
@@ -753,7 +966,9 @@ export default function Agenda({
             onClick={() =>
               patch(
                 t.id,
-                recurrente ? { ultimaHechaDia: diaVisto } : { completada: true },
+                recurrente
+                  ? { ultimaHechaDia: diaVisto }
+                  : { completada: true },
               )
             }
             className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full border transition hover:border-ink"
@@ -799,18 +1014,6 @@ export default function Agenda({
             {scheduleId === t.id ? (
               <div className="flex flex-wrap items-center gap-2">
                 <input
-                  type="date"
-                  ref={scheduleDateRef}
-                  className="sr-only"
-                  onChange={(e) => {
-                    const iso = e.target.value;
-                    if (iso) {
-                      const [yyyy, mm, dd] = iso.split("-");
-                      setScheduleDia(`${dd}/${mm}/${yyyy}`);
-                    }
-                  }}
-                />
-                <input
                   type="text"
                   inputMode="numeric"
                   placeholder="DD/MM/AAAA"
@@ -820,13 +1023,7 @@ export default function Agenda({
                 />
                 <button
                   type="button"
-                  onClick={() => {
-                    if (scheduleDateRef.current?.showPicker) {
-                      scheduleDateRef.current.showPicker();
-                    } else {
-                      scheduleDateRef.current?.click();
-                    }
-                  }}
+                  onClick={(e) => abrirCal("schedule", e)}
                   className="rounded-md border border-rule px-2 py-1 font-mono text-xs text-faint transition hover:border-ink hover:text-ink"
                   aria-label="Abrir calendario"
                   title="Abrir calendario"
@@ -846,7 +1043,12 @@ export default function Agenda({
                       const hm = HORA_HM_RE.test(scheduleHora)
                         ? scheduleHora
                         : "09:00";
-                      patch(t.id, { recordatorioAt: toLocalISO(iso, hm) });
+                      patch(t.id, {
+                        recordatorioAt: toLocalISO(iso, hm),
+                        hora: HORA_HM_RE.test(scheduleHora)
+                          ? scheduleHora
+                          : null,
+                      });
                       setScheduleId(null);
                       setScheduleDia("");
                       setScheduleHora("");
@@ -882,8 +1084,75 @@ export default function Agenda({
           </>
         )}
 
+        {t.duracionMin && horaDe(t) && (
+          <span
+            className="flex shrink-0 items-center gap-1.5 font-mono text-[10px] text-faint"
+            title={`hasta las ${finDe(t)}`}
+          >
+            <TrazoDuracion min={t.duracionMin} />
+            {fmtDuracion(t.duracionMin)}
+          </span>
+        )}
+
+        {superpuestas.has(t.id) && (
+          <span
+            title="Se superpone con otra tarea"
+            className="shrink-0 rounded-full border border-alta px-1.5 font-mono text-[10px] uppercase tracking-wider text-alta"
+          >
+            ⚠ se pisa
+          </span>
+        )}
+
         {renderBorrar(t)}
       </li>
+    );
+  }
+
+  function completarId(id: string) {
+    const t = tasks.find((x) => x.id === id);
+    if (!t) return;
+    patch(id, esRecurrente(t) ? { ultimaHechaDia: diaVisto } : { completada: true });
+  }
+
+  function pedirBorrar(id: string) {
+    const t = tasks.find((x) => x.id === id);
+    if (t) setABorrar(t);
+  }
+
+  function editarId(id: string) {
+    const t = tasks.find((x) => x.id === id);
+    if (t) abrirEdicion(t);
+  }
+
+  // Vista de día por franjas: con hora en la grilla, sin hora en "todo el día"
+  function renderFranjas() {
+    const conHora = tareasDiaPendientes.filter((t) => horaDe(t));
+    const sinHora = tareasDiaPendientes.filter((t) => !horaDe(t));
+    const editando = tareasDiaPendientes.find((t) => t.id === editandoId);
+    return (
+      <div className="space-y-4">
+        {editando && <ul>{renderItem(editando)}</ul>}
+        <DayTimeline
+          mostrarAhora={viendoHoy}
+          todoElDia={sinHora.map((t) => ({
+            id: t.id,
+            titulo: t.titulo,
+            color: META[t.prioridad].color,
+            etiqueta: esRecurrente(t) ? labelRecurrencia(t) : undefined,
+          }))}
+          bloques={conHora.map((t) => ({
+            id: t.id,
+            titulo: t.titulo,
+            color: META[t.prioridad].color,
+            ini: minutos(horaDe(t)!),
+            dur: t.duracionMin,
+            etiqueta: esRecurrente(t) ? labelRecurrencia(t) : undefined,
+          }))}
+          onCompletar={(id) => completarId(id)}
+          onEditar={(id) => editarId(id)}
+          onBorrar={(id) => pedirBorrar(id)}
+        />
+      </div>
     );
   }
 
@@ -900,7 +1169,7 @@ export default function Agenda({
             className="w-full bg-transparent text-lg text-ink outline-none placeholder:text-faint/70"
           />
           <button
-            onClick={crear}
+            onClick={() => crear()}
             disabled={anotarDisabled}
             className="shrink-0 rounded-full bg-ink px-4 py-1.5 font-mono text-xs uppercase tracking-wider text-paper transition disabled:opacity-25"
           >
@@ -934,7 +1203,14 @@ export default function Agenda({
           <div className="ml-auto flex items-center gap-3">
             {!esRecurrenteActiva && (
               <button
-                onClick={() => setAbierto((v) => !v)}
+                onClick={() => {
+                  if (abierto) {
+                    setRecordatorioDia("");
+                    setRecordatorioHora("");
+                    if (!horaOpen) setDuracion(null);
+                  }
+                  setAbierto((v) => !v);
+                }}
                 className="font-mono text-xs uppercase tracking-wider text-faint underline-offset-4 hover:underline"
               >
                 {abierto ? "− recordatorio" : "+ recordatorio"}
@@ -949,7 +1225,13 @@ export default function Agenda({
               </button>
             )}
             <button
-              onClick={() => setHoraOpen((v) => !v)}
+              onClick={() => {
+                if (horaOpen) {
+                  setHora("");
+                  if (!abierto) setDuracion(null);
+                }
+                setHoraOpen((v) => !v);
+              }}
               className="font-mono text-xs uppercase tracking-wider text-faint underline-offset-4 hover:underline"
             >
               {horaOpen ? "− hora" : "+ hora"}
@@ -964,18 +1246,6 @@ export default function Agenda({
             </label>
             <div className="mt-1 flex flex-wrap items-center gap-2">
               <input
-                type="date"
-                ref={composerDateRef}
-                className="sr-only"
-                onChange={(e) => {
-                  const iso = e.target.value;
-                  if (iso) {
-                    const [yyyy, mm, dd] = iso.split("-");
-                    setRecordatorioDia(`${dd}/${mm}/${yyyy}`);
-                  }
-                }}
-              />
-              <input
                 type="text"
                 inputMode="numeric"
                 placeholder="DD/MM/AAAA"
@@ -987,13 +1257,7 @@ export default function Agenda({
               />
               <button
                 type="button"
-                onClick={() => {
-                  if (composerDateRef.current?.showPicker) {
-                    composerDateRef.current.showPicker();
-                  } else {
-                    composerDateRef.current?.click();
-                  }
-                }}
+                onClick={(e) => abrirCal("composer", e)}
                 className="rounded-md border border-rule px-2 py-1.5 font-mono text-sm text-faint transition hover:border-ink hover:text-ink"
                 aria-label="Abrir calendario"
                 title="Abrir calendario"
@@ -1007,6 +1271,11 @@ export default function Agenda({
                 className="rounded-md border border-rule bg-panel px-3 py-1.5 font-mono text-sm text-ink outline-none focus:border-ink"
               />
             </div>
+            {!horaOpen && (
+              <div className="mt-3">
+                <DuracionPicker value={duracion} onChange={setDuracion} />
+              </div>
+            )}
             {fechaInvalida && (
               <p className="mt-1 font-mono text-[10px] uppercase tracking-wider text-alta">
                 formato: DD/MM/AAAA
@@ -1021,13 +1290,11 @@ export default function Agenda({
               repetir
             </label>
             <div className="mt-1 flex flex-wrap items-center gap-2">
-              {(
-                [
-                  { r: "diaria" as Recurrencia, label: "Todos los días" },
-                  { r: "intervalo" as Recurrencia, label: "Cada X días" },
-                  { r: "semanal" as Recurrencia, label: "Días de la semana" },
-                ]
-              ).map(({ r, label }) => {
+              {[
+                { r: "diaria" as Recurrencia, label: "Todos los días" },
+                { r: "intervalo" as Recurrencia, label: "Cada X días" },
+                { r: "semanal" as Recurrencia, label: "Días de la semana" },
+              ].map(({ r, label }) => {
                 const on = recurrencia === r;
                 return (
                   <button
@@ -1099,12 +1366,17 @@ export default function Agenda({
             <label className="block font-mono text-[10px] uppercase tracking-wider text-faint">
               a las
             </label>
-            <input
-              type="time"
-              value={hora}
-              onChange={(e) => setHora(e.target.value)}
-              className="mt-1 rounded-md border border-rule bg-panel px-3 py-1.5 font-mono text-sm text-ink outline-none focus:border-ink"
-            />
+            <div className="mt-1 flex flex-wrap items-center gap-2">
+              <input
+                type="time"
+                value={hora}
+                onChange={(e) => setHora(e.target.value)}
+                className="rounded-md border border-rule bg-panel px-3 py-1.5 font-mono text-sm text-ink outline-none focus:border-ink"
+              />
+            </div>
+            <div className="mt-3">
+              <DuracionPicker value={duracion} onChange={setDuracion} />
+            </div>
           </div>
         )}
       </section>
@@ -1128,15 +1400,7 @@ export default function Agenda({
           ))}
         </div>
 
-        {tareasDiaPendientes.length === 0 ? (
-          <p className="font-sans text-sm text-faint/60">
-            sin tareas para {viendoHoy ? "hoy" : new Intl.DateTimeFormat("es-AR", { day: "numeric", month: "short" }).format(diaVistoDate)}
-          </p>
-        ) : (
-          <ul className="space-y-px">
-            {tareasDiaPendientes.map((t) => renderItem(t))}
-          </ul>
-        )}
+        {renderFranjas()}
       </section>
 
       {/* Pendientes por agendar */}
@@ -1197,8 +1461,130 @@ export default function Agenda({
           )}
         </section>
       )}
+
+      {aBorrar && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-5"
+          onClick={() => setABorrar(null)}
+          onKeyDown={(e) => e.key === "Escape" && setABorrar(null)}
+        >
+          <div
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="borrar-titulo"
+            className="w-full max-w-sm rounded-xl border border-rule bg-paper p-5 shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3
+              id="borrar-titulo"
+              className="font-mono text-xs uppercase tracking-[0.2em] text-peligro"
+            >
+              Eliminar tarea
+            </h3>
+            <p className="mt-3 text-sm text-ink">
+              ¿Eliminar <strong>{aBorrar.titulo}</strong>?
+              {esRecurrente(aBorrar) && " Se borra la serie completa, no solo hoy."}{" "}
+              No se puede deshacer.
+            </p>
+            <div className="mt-5 flex justify-end gap-3">
+              <button
+                autoFocus
+                onClick={() => setABorrar(null)}
+                className="font-mono text-xs uppercase tracking-wider text-faint underline-offset-4 hover:underline"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={() => {
+                  const id = aBorrar.id;
+                  setABorrar(null);
+                  borrar(id);
+                }}
+                className="rounded-full bg-peligro px-4 py-1.5 font-mono text-xs uppercase tracking-wider text-paper"
+              >
+                Eliminar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {confirmar && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-5"
+          onClick={() => setConfirmar(null)}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            className="w-full max-w-sm rounded-xl border border-rule bg-paper p-5 shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="font-mono text-xs uppercase tracking-[0.2em] text-alta">
+              ⚠ Horario superpuesto
+            </h3>
+            <p className="mt-3 text-sm text-ink">
+              <strong>{confirmar.titulo}</strong> se superpone con:
+            </p>
+            <ul className="mt-2 space-y-1">
+              {confirmar.choques.map((c) => (
+                <li
+                  key={c.id}
+                  className="flex items-center gap-2 text-sm text-ink"
+                >
+                  <span
+                    className="h-2 w-2 shrink-0 rounded-full"
+                    style={{ background: META[c.prioridad].color }}
+                  />
+                  <span className="flex-1">{c.titulo}</span>
+                  <span className="font-mono text-xs text-faint">
+                    {horaDe(c)}
+                    {c.duracionMin ? ` · ${fmtDuracion(c.duracionMin)}` : ""}
+                  </span>
+                </li>
+              ))}
+            </ul>
+            <div className="mt-5 flex justify-end gap-3">
+              <button
+                onClick={() => setConfirmar(null)}
+                className="font-mono text-xs uppercase tracking-wider text-faint underline-offset-4 hover:underline"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={() => {
+                  const ok = confirmar.onOk;
+                  setConfirmar(null);
+                  ok();
+                }}
+                className="rounded-full bg-ink px-4 py-1.5 font-mono text-xs uppercase tracking-wider text-paper"
+              >
+                Guardar igual
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {cal && (
+        <MiniCalendar
+          value={valorCal(cal.campo)}
+          hoy={hoy}
+          onChange={elegirCal}
+          onClose={cerrarCal}
+          anchor={cal.anchor}
+        />
+      )}
     </main>
   );
+}
+
+// campos que cambiaron localmente respecto de la versión optimista enviada
+function cambiosLocales(actual: Task, enviada: Task): Partial<Task> {
+  const out: Record<string, unknown> = {};
+  for (const k of Object.keys(actual) as (keyof Task)[]) {
+    if (k !== "id" && actual[k] !== enviada[k]) out[k] = actual[k];
+  }
+  return out as Partial<Task>;
 }
 
 function normalize(t: Task): Task {

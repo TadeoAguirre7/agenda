@@ -22,6 +22,7 @@ model Task {
   completada       Boolean  @default(false)
   completadaAt     DateTime? // cuándo se marcó como completada (para estadísticas y vista diaria)
   hora             String? // "HH:MM" — hora opcional del día
+  duracionMin      Int? // duración en minutos (opcional)
   recurrencia      String    @default("ninguna") // "ninguna" | "diaria" | "intervalo" | "semanal"
   intervaloDias    Int? // cada X días (recurrencia = "intervalo")
   diasSemana       String? // csv 0-6, 0=domingo (recurrencia = "semanal")
@@ -103,6 +104,7 @@ model User {
   tasks              Task[]
   entertainmentItems EntertainmentItem[]
   restaurantItems    RestaurantItem[]
+  gymRoutine         GymRoutine?
 }
 
 model VerificationToken {
@@ -111,4 +113,29 @@ model VerificationToken {
   expires    DateTime
 
   @@unique([identifier, token])
+}
+
+// Rutina de gimnasio importada (una por usuario; importar de nuevo la reemplaza)
+model GymRoutine {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  notas     Json? // string[] con las notas generales de la rutina
+  createdAt DateTime @default(now())
+
+  user User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  dias GymDay[]
+}
+
+model GymDay {
+  id           String    @id @default(cuid())
+  routineId    String
+  orden        Int // posición original en la rutina
+  titulo       String // "Día 1"
+  subtitulo    String? // "Pierna + glúteos"
+  secciones    Json // [{ titulo, tipo, items: [{ nombre, dosis, url }] }]
+  completadoAt DateTime? // última vez que se hizo (los hechos van al final)
+
+  routine GymRoutine @relation(fields: [routineId], references: [id], onDelete: Cascade)
+
+  @@index([routineId])
 }

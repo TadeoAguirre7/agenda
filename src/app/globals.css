@@ -10,6 +10,7 @@
   --media: #5b6f95; /* azul acero más marcado */
   --baja: #7a8baa; /* azul gris visible, no se pierde */
   --acento: #c9d6ec; /* azul pálido (selección) */
+  --peligro: #c8473d; /* rojo lacre (eliminar) */
 }
 
 @theme inline {
@@ -22,6 +23,7 @@
   --color-media: var(--media);
   --color-baja: var(--baja);
   --color-acento: var(--acento);
+  --color-peligro: var(--peligro);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
   --font-display: var(--font-caveat);
@@ -64,4 +66,15 @@ body::before {
 ::selection {
   background: var(--acento);
   color: var(--ink);
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }

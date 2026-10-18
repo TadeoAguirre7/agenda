@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
 type Size = "small" | "normal" | "large";
 
@@ -76,18 +77,23 @@ function compressImage(file: File): Promise<string> {
 
 export default function SettingsPanel() {
   const [open, setOpen] = useState(false);
+  const [anchor, setAnchor] = useState<DOMRect | null>(null);
   const [size, setSize] = useState<Size>(() => currentSize());
-  const [hasBg, setHasBg] = useState(false);
+  // solo se usa con el panel abierto (cliente), no afecta la hidratación
+  const [hasBg, setHasBg] = useState(() => {
+    try {
+      return typeof window !== "undefined" && !!localStorage.getItem(BG_KEY);
+    } catch {
+      return false;
+    }
+  });
   const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     // Apply saved bg on mount
     try {
       const saved = localStorage.getItem(BG_KEY);
-      if (saved) {
-        applyBg(saved);
-        setHasBg(true);
-      }
+      if (saved) applyBg(saved);
     } catch {
       // ignore
     }
@@ -97,8 +103,13 @@ export default function SettingsPanel() {
     function onKey(e: KeyboardEvent) {
       if (e.key === "Escape") setOpen(false);
     }
+    const cerrar = () => setOpen(false);
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    window.addEventListener("resize", cerrar);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("resize", cerrar);
+    };
   }, []);
 
   function choose(s: Size) {
@@ -136,88 +147,128 @@ export default function SettingsPanel() {
     <div className="relative">
       <button
         type="button"
-        onClick={() => setOpen((v) => !v)}
+        onClick={(e) => {
+          setAnchor(e.currentTarget.getBoundingClientRect());
+          setOpen((v) => !v);
+        }}
         aria-label="Ajustes"
+        aria-expanded={open}
         title="Ajustes"
-        className="rounded-full p-2 text-xl leading-none text-faint transition hover:bg-ink/5"
+        className={`rounded-full p-2 text-xl leading-none transition hover:bg-ink/5 focus-visible:outline-2 focus-visible:outline-ink ${open ? "bg-ink/5 text-ink" : "text-faint"}`}
       >
         ⚙
       </button>
-      {open && (
-        <>
-        <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
-        <div className="fixed right-4 top-14 z-50 w-56 rounded-md border border-rule bg-panel p-4 shadow-lg">
-          <div className="mb-3 flex items-baseline justify-between">
-            <span className="font-mono text-xs uppercase tracking-wider text-ink">
-              Ajustes
-            </span>
-            <button
-              onClick={() => setOpen(false)}
-              className="font-mono text-xs text-faint hover:text-alta"
-              aria-label="Cerrar"
+      {open &&
+        anchor &&
+        createPortal(
+          <>
+            <div className="fixed inset-0 z-[90]" onClick={() => setOpen(false)} />
+            <div
+              role="dialog"
+              aria-label="Ajustes"
+              className="fixed z-[100] w-[272px] rounded-xl border border-rule bg-panel p-4 shadow-lg"
+              style={{
+                top: anchor.bottom + 10,
+                // alineado a la derecha del engranaje, sin salirse de pantalla
+                left: Math.max(
+                  8,
+                  Math.min(anchor.right - 272 + 8, window.innerWidth - 272 - 8),
+                ),
+              }}
             >
-              ✕
-            </button>
-          </div>
+              {/* piquito apuntando al engranaje */}
+              <span
+                aria-hidden
+                className="absolute -top-[6px] h-3 w-3 rotate-45 border-l border-t border-rule bg-panel"
+                style={{
+                  left:
+                    anchor.left +
+                    anchor.width / 2 -
+                    Math.max(
+                      8,
+                      Math.min(anchor.right - 272 + 8, window.innerWidth - 272 - 8),
+                    ) -
+                    6,
+                }}
+              />
+              <div className="mb-4 flex items-center justify-between">
+                <span className="font-mono text-xs uppercase tracking-[0.2em] text-ink">
+                  Ajustes
+                </span>
+                <button
+                  onClick={() => setOpen(false)}
+                  className="-mr-1 rounded-full px-1.5 font-mono text-xs text-faint hover:text-ink"
+                  aria-label="Cerrar"
+                >
+                  ✕
+                </button>
+              </div>
 
-          {/* Font size */}
-          <div className="mb-2 font-mono text-[10px] uppercase tracking-wider text-faint">
-            Tamaño de letra
-          </div>
-          <div className="flex gap-2">
-            {(["small", "normal", "large"] as Size[]).map((s) => (
-              <button
-                key={s}
-                onClick={() => choose(s)}
-                className={`flex-1 rounded-full border px-2 py-1.5 font-mono text-xs transition ${
-                  size === s
-                    ? "border-ink bg-ink text-paper"
-                    : "border-rule text-faint hover:border-ink"
-                }`}
+              <div className="mb-2 font-mono text-[10px] uppercase tracking-wider text-faint">
+                Tamaño de letra
+              </div>
+              <div
+                role="radiogroup"
+                aria-label="Tamaño de letra"
+                className="grid grid-cols-3 rounded-full border border-rule p-0.5"
               >
-                {s === "small"
-                  ? "Pequeña"
-                  : s === "large"
-                    ? "Grande"
-                    : "Normal"}
-              </button>
-            ))}
-          </div>
+                {(["small", "normal", "large"] as Size[]).map((s) => (
+                  <button
+                    key={s}
+                    role="radio"
+                    aria-checked={size === s}
+                    onClick={() => choose(s)}
+                    className={`rounded-full py-1.5 font-mono text-xs transition ${
+                      size === s
+                        ? "bg-ink text-paper"
+                        : "text-faint hover:text-ink"
+                    }`}
+                  >
+                    <span
+                      className={
+                        s === "small" ? "text-[10px]" : s === "large" ? "text-sm" : ""
+                      }
+                    >
+                      Aa
+                    </span>{" "}
+                    {s === "small" ? "Chica" : s === "large" ? "Grande" : "Normal"}
+                  </button>
+                ))}
+              </div>
 
-          {/* Background image */}
-          <div className="mt-4 mb-2 font-mono text-[10px] uppercase tracking-wider text-faint">
-            Fondo de pantalla
-          </div>
-          <input
-            ref={fileRef}
-            type="file"
-            accept="image/*"
-            onChange={handleFile}
-            className="hidden"
-          />
-          <div className="flex gap-2">
-            <button
-              onClick={() => fileRef.current?.click()}
-              className="flex-1 rounded-full border border-rule px-2 py-1.5 font-mono text-xs text-faint transition hover:border-ink hover:text-ink"
-            >
-              {hasBg ? "Cambiar" : "Elegir foto"}
-            </button>
-            {hasBg && (
-              <button
-                onClick={removeBg}
-                className="rounded-full border border-rule px-2 py-1.5 font-mono text-xs text-faint transition hover:border-alta hover:text-alta"
-              >
-                Quitar
-              </button>
-            )}
-          </div>
-
-          <p className="mt-3 font-mono text-[10px] uppercase tracking-wider text-faint/70">
-            Se guarda en este dispositivo
-          </p>
-        </div>
-        </>
-      )}
+              <div className="mb-2 mt-5 font-mono text-[10px] uppercase tracking-wider text-faint">
+                Fondo de pantalla
+              </div>
+              <input
+                ref={fileRef}
+                type="file"
+                accept="image/*"
+                onChange={handleFile}
+                className="hidden"
+              />
+              <div className="flex gap-2">
+                <button
+                  onClick={() => fileRef.current?.click()}
+                  className="flex-1 rounded-full border border-rule px-2 py-1.5 font-mono text-xs text-ink transition hover:border-ink"
+                >
+                  {hasBg ? "Cambiar foto" : "Elegir foto"}
+                </button>
+                {hasBg && (
+                  <button
+                    onClick={removeBg}
+                    className="rounded-full border border-rule px-3 py-1.5 font-mono text-xs text-faint transition hover:border-peligro hover:text-peligro"
+                  >
+                    Quitar
+                  </button>
+                )}
+              </div>
+              <p className="mt-2 font-mono text-[10px] text-faint/80">
+                Se guarda solo en este dispositivo.
+              </p>
+            </div>
+          </>,
+          document.body,
+        )}
     </div>
   );
 }

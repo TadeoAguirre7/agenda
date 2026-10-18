@@ -4,6 +4,8 @@ import Agenda, { type Task } from "@/components/Agenda";
 import Entretenimiento, { type EntertainmentItem } from "@/components/Entretenimiento";
 import Restaurantes, { type RestaurantItem } from "@/components/Restaurantes";
 import TabsShell from "@/components/TabsShell";
+import Gimnasio, { type GymRutina } from "@/components/Gimnasio";
+import type { GymSeccion } from "@/lib/parse-rutina";
 import { SignInButton } from "@/components/AuthButtons";
 import type { UserPreferences } from "@/types/preferences";
 
@@ -51,6 +53,7 @@ export default async function Home() {
     completada: t.completada,
     completadaAt: t.completadaAt?.toISOString() ?? null,
     hora: t.hora,
+    duracionMin: t.duracionMin,
     recurrencia: t.recurrencia as Task["recurrencia"],
     intervaloDias: t.intervaloDias,
     diasSemana: t.diasSemana,
@@ -81,18 +84,39 @@ export default async function Home() {
     completada: i.completada,
   }));
 
+  const gymRow = await prisma.gymRoutine.findUnique({
+    where: { userId },
+    include: { dias: { orderBy: { orden: "asc" } } },
+  });
+  const rutina: GymRutina = gymRow
+    ? {
+        notas: Array.isArray(gymRow.notas) ? (gymRow.notas as string[]) : [],
+        dias: gymRow.dias.map((d) => ({
+          id: d.id,
+          orden: d.orden,
+          titulo: d.titulo,
+          subtitulo: d.subtitulo,
+          secciones: d.secciones as GymSeccion[],
+          completadoAt: d.completadoAt?.toISOString() ?? null,
+        })),
+      }
+    : null;
+
   return (
     <TabsShell
+      gym={<Gimnasio key="gym" initial={rutina} />}
       userEmail={session.user.email ?? ""}
-      todo={<Agenda initial={tasks} preferences={preferences.taskColors} />}
+      todo={<Agenda key="todo" initial={tasks} preferences={preferences.taskColors} />}
       entertainment={
         <Entretenimiento
+          key="entertainment"
           initial={entertainmentItems}
           preferences={preferences.entertainmentColors}
         />
       }
       restaurants={
         <Restaurantes
+          key="restaurants"
           initial={restaurantItems}
           preferences={preferences.restaurantColors}
         />

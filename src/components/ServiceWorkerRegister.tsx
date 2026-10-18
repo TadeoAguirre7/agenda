@@ -26,7 +26,7 @@ export default function ServiceWorkerRegister() {
 
   useEffect(() => {
     // En desarrollo no registramos SW para evitar problemas con HMR y chunks
-    if (window.location.hostname === "localhost") {
+    if (process.env.NODE_ENV !== "production") {
       navigator.serviceWorker
         ?.getRegistrations()
         ?.then((registrations) =>

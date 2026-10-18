@@ -13,6 +13,12 @@ function validarDiasSemana(value: unknown): string | null {
   return dias.join(",");
 }
 
+function validarDuracion(value: unknown): number | null {
+  return Number.isInteger(value) && (value as number) >= 1 && (value as number) <= 1440
+    ? (value as number)
+    : null;
+}
+
 // GET /api/tasks — listar tareas del usuario autenticado
 export async function GET() {
   const session = await auth();
@@ -84,6 +90,7 @@ export async function POST(req: Request) {
       descripcion: body.descripcion ?? null,
       prioridad,
       hora: HORA_RE.test(body.hora ?? "") ? body.hora : null,
+      duracionMin: validarDuracion(body.duracionMin),
       recurrencia,
       intervaloDias,
       diasSemana,
