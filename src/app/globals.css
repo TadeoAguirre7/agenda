@@ -11,6 +11,42 @@
   --baja: #7a8baa; /* azul gris visible, no se pierde */
   --acento: #c9d6ec; /* azul pálido (selección) */
   --peligro: #c8473d; /* rojo lacre (eliminar) */
+  --velo: transparent; /* capa sobre el fondo de pantalla */
+  color-scheme: light;
+}
+
+/* Modo oscuro: "cuaderno de noche" — papel azul tinta, trazo tiza.
+   data-theme="dark" lo fuerza; sin data-theme sigue al sistema. */
+:root[data-theme="dark"] {
+  --paper: #141821; /* papel azul tinta */
+  --ink: #e7e3d8; /* trazo tiza cálido */
+  --faint: #8d94a0; /* grafito claro */
+  --rule: #272d38; /* renglón apenas visible */
+  --panel: #1b202b; /* papel elevado */
+  --alta: #9fb3dc;
+  --media: #8299c4;
+  --baja: #6c7fa5;
+  --acento: #2d3b58;
+  --peligro: #e3675b;
+  --velo: rgba(10, 13, 19, 0.78);
+  color-scheme: dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) {
+    --paper: #141821;
+    --ink: #e7e3d8;
+    --faint: #8d94a0;
+    --rule: #272d38;
+    --panel: #1b202b;
+    --alta: #9fb3dc;
+    --media: #8299c4;
+    --baja: #6c7fa5;
+    --acento: #2d3b58;
+    --peligro: #e3675b;
+    --velo: rgba(10, 13, 19, 0.78);
+    color-scheme: dark;
+  }
 }
 
 @theme inline {
@@ -53,7 +89,9 @@ body::before {
   position: fixed;
   inset: 0;
   z-index: -1;
-  background: var(--bg-custom, url("/background-stars.jpeg")) center / cover no-repeat;
+  background:
+    linear-gradient(var(--velo), var(--velo)),
+    var(--bg-custom, url("/background-stars.jpeg")) center / cover no-repeat;
 }
 
 /* Mobile: atenuar el fondo para legibilidad */

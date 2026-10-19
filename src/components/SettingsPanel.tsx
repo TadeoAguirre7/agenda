@@ -38,6 +38,26 @@ function currentSize(): Size {
   return "normal";
 }
 
+type Tema = "light" | "dark" | "system";
+
+function aplicarTema(t: Tema) {
+  const html = document.documentElement;
+  if (t === "system") delete html.dataset.theme;
+  else html.dataset.theme = t;
+  try {
+    if (t === "system") localStorage.removeItem("theme");
+    else localStorage.setItem("theme", t);
+  } catch {
+    // ignore
+  }
+}
+
+function temaActual(): Tema {
+  if (typeof document === "undefined") return "system";
+  const t = document.documentElement.dataset.theme;
+  return t === "dark" || t === "light" ? t : "system";
+}
+
 function applyBg(dataUrl: string | null) {
   // Sets --bg-custom on body; body::before in globals.css uses it
   if (dataUrl) {
@@ -78,6 +98,7 @@ function compressImage(file: File): Promise<string> {
 export default function SettingsPanel() {
   const [open, setOpen] = useState(false);
   const [anchor, setAnchor] = useState<DOMRect | null>(null);
+  const [tema, setTema] = useState<Tema>(temaActual);
   const [size, setSize] = useState<Size>(() => currentSize());
   // solo se usa con el panel abierto (cliente), no afecta la hidratación
   const [hasBg, setHasBg] = useState(() => {
@@ -202,6 +223,38 @@ export default function SettingsPanel() {
                 >
                   ✕
                 </button>
+              </div>
+
+              <div className="mb-2 font-mono text-[10px] uppercase tracking-wider text-faint">
+                Tema
+              </div>
+              <div
+                role="radiogroup"
+                aria-label="Tema"
+                className="mb-5 grid grid-cols-3 rounded-full border border-rule p-0.5"
+              >
+                {(
+                  [
+                    { t: "light", label: "Claro", icono: "☀" },
+                    { t: "dark", label: "Oscuro", icono: "☾" },
+                    { t: "system", label: "Sistema", icono: "◐" },
+                  ] as const
+                ).map(({ t, label, icono }) => (
+                  <button
+                    key={t}
+                    role="radio"
+                    aria-checked={tema === t}
+                    onClick={() => {
+                      setTema(t);
+                      aplicarTema(t);
+                    }}
+                    className={`rounded-full py-1.5 font-mono text-xs transition ${
+                      tema === t ? "bg-ink text-paper" : "text-faint hover:text-ink"
+                    }`}
+                  >
+                    <span aria-hidden>{icono}</span> {label}
+                  </button>
+                ))}
               </div>
 
               <div className="mb-2 font-mono text-[10px] uppercase tracking-wider text-faint">
