@@ -4,8 +4,8 @@ import { auth } from "@/lib/auth";
 
 export type UserPreferences = {
   taskColors?: Partial<Record<"alta" | "media" | "baja", string>>;
-  entertainmentColors?: Partial<Record<"pelis" | "series" | "musica" | "libros", string>>;
-  restaurantColors?: Partial<Record<"restaurantes" | "cafes" | "museos" | "ferias", string>>;
+  entertainmentColors?: Partial<Record<"pelis" | "series" | "musica" | "libros" | "recetas", string>>;
+  restaurantColors?: Partial<Record<"restaurantes" | "cafes" | "museos" | "ferias" | "bares", string>>;
 };
 
 // GET /api/user/preferences

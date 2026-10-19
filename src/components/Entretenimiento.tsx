@@ -4,7 +4,7 @@ import { useState } from "react";
 import { parseLista, csvALineas } from "@/lib/parse-list";
 import ColorDot from "@/components/ColorDot";
 
-export type Categoria = "pelis" | "series" | "musica" | "libros";
+export type Categoria = "pelis" | "series" | "musica" | "libros" | "recetas";
 
 export type EntertainmentItem = {
   id: string;
@@ -13,7 +13,7 @@ export type EntertainmentItem = {
   completada: boolean;
 };
 
-const CATEGORIAS: Categoria[] = ["pelis", "series", "musica", "libros"];
+const CATEGORIAS: Categoria[] = ["pelis", "series", "musica", "libros", "recetas"];
 const MAX_IMPORT = 200;
 
 const DEFAULT_META: Record<Categoria, { label: string; color: string }> = {
@@ -21,6 +21,7 @@ const DEFAULT_META: Record<Categoria, { label: string; color: string }> = {
   series: { label: "Series", color: "#5b6f95" },
   musica: { label: "Música", color: "#7a8baa" },
   libros: { label: "Libros", color: "#6e83ad" },
+  recetas: { label: "Recetas", color: "#c98b4e" },
 };
 
 export default function Entretenimiento({
@@ -35,12 +36,14 @@ export default function Entretenimiento({
     series: preferences?.series ?? DEFAULT_META.series.color,
     musica: preferences?.musica ?? DEFAULT_META.musica.color,
     libros: preferences?.libros ?? DEFAULT_META.libros.color,
+    recetas: preferences?.recetas ?? DEFAULT_META.recetas.color,
   });
   const META: Record<Categoria, { label: string; color: string }> = {
     pelis: { label: DEFAULT_META.pelis.label, color: colores.pelis },
     series: { label: DEFAULT_META.series.label, color: colores.series },
     musica: { label: DEFAULT_META.musica.label, color: colores.musica },
     libros: { label: DEFAULT_META.libros.label, color: colores.libros },
+    recetas: { label: DEFAULT_META.recetas.label, color: colores.recetas },
   };
 
   const [items, setItems] = useState<EntertainmentItem[]>(initial);
@@ -51,6 +54,7 @@ export default function Entretenimiento({
     series: true,
     musica: true,
     libros: true,
+    recetas: true,
   });
   const [importOpen, setImportOpen] = useState(false);
   const [importTexto, setImportTexto] = useState("");

@@ -18,6 +18,12 @@ export default async function Home() {
     return (
       <div className="flex min-h-screen items-center justify-center bg-paper px-5">
         <div className="w-full max-w-sm text-center">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/icon-logo.svg"
+            alt=""
+            className="mx-auto mb-4 h-24 w-24 rounded-3xl shadow-sm"
+          />
           <h1 className="mb-2 font-display text-6xl text-ink">
             Bitácora
           </h1>

@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 
-const CATEGORIAS = ["restaurantes", "cafes", "museos", "ferias"] as const;
+const CATEGORIAS = ["restaurantes", "cafes", "museos", "ferias", "bares"] as const;
 
 export async function GET() {
   const session = await auth();

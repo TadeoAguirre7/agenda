@@ -4,7 +4,7 @@ import { useState } from "react";
 import { parseLista, csvALineas } from "@/lib/parse-list";
 import ColorDot from "@/components/ColorDot";
 
-export type Categoria = "restaurantes" | "cafes" | "museos" | "ferias";
+export type Categoria = "restaurantes" | "cafes" | "museos" | "ferias" | "bares";
 
 export type RestaurantItem = {
   id: string;
@@ -13,7 +13,7 @@ export type RestaurantItem = {
   completada: boolean;
 };
 
-const CATEGORIAS: Categoria[] = ["restaurantes", "cafes", "museos", "ferias"];
+const CATEGORIAS: Categoria[] = ["restaurantes", "cafes", "museos", "ferias", "bares"];
 const MAX_IMPORT = 200;
 
 const DEFAULT_META: Record<Categoria, { label: string; color: string }> = {
@@ -21,6 +21,7 @@ const DEFAULT_META: Record<Categoria, { label: string; color: string }> = {
   cafes: { label: "Cafés", color: "#5e7396" },
   museos: { label: "Museos", color: "#8fa3c8" },
   ferias: { label: "Ferias", color: "#b9c4d8" },
+  bares: { label: "Joda / bares", color: "#9b5de5" },
 };
 
 export default function Restaurantes({
@@ -35,12 +36,14 @@ export default function Restaurantes({
     cafes: preferences?.cafes ?? DEFAULT_META.cafes.color,
     museos: preferences?.museos ?? DEFAULT_META.museos.color,
     ferias: preferences?.ferias ?? DEFAULT_META.ferias.color,
+    bares: preferences?.bares ?? DEFAULT_META.bares.color,
   });
   const META: Record<Categoria, { label: string; color: string }> = {
     restaurantes: { label: DEFAULT_META.restaurantes.label, color: colores.restaurantes },
     cafes: { label: DEFAULT_META.cafes.label, color: colores.cafes },
     museos: { label: DEFAULT_META.museos.label, color: colores.museos },
     ferias: { label: DEFAULT_META.ferias.label, color: colores.ferias },
+    bares: { label: DEFAULT_META.bares.label, color: colores.bares },
   };
 
   const [items, setItems] = useState<RestaurantItem[]>(initial);
@@ -51,6 +54,7 @@ export default function Restaurantes({
     cafes: true,
     museos: true,
     ferias: true,
+    bares: true,
   });
   const [importOpen, setImportOpen] = useState(false);
   const [importTexto, setImportTexto] = useState("");

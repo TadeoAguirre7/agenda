@@ -1,11 +1,11 @@
-const CACHE_NAME = "bitacora-v5";
+const CACHE_NAME = "bitacora-v6";
 const STATIC_ASSETS = [
   "/",
   "/manifest.json",
-  "/icon-512x512.svg",
+  "/icon-logo.svg",
+  "/icon-192x192.png",
   "/background-totoro.jpeg",
   "/background.jpeg",
-  "/favicon.ico",
 ];
 
 const API_BASE = "/api/";
@@ -212,8 +212,8 @@ self.addEventListener("push", (event) => {
   const title = data.title || "Bitácora";
   const options = {
     body: data.body || "Tienes una tarea pendiente",
-    icon: "/icon-512x512.svg",
-    badge: "/icon-512x512.svg",
+    icon: "/icon-192x192.png",
+    badge: "/icon-192x192.png",
     tag: data.tag || "default",
     requireInteraction: true,
   };

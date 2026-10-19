@@ -153,7 +153,11 @@ export default function TabsShell({
           }`}
         >
           <div className="flex items-center justify-between px-6 pb-4 pt-6">
-            <span className="font-display text-4xl leading-none text-ink">Bitácora</span>
+            <span className="flex items-center gap-2.5">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/icon-logo.svg" alt="" className="h-10 w-10 rounded-xl" />
+              <span className="font-display text-4xl leading-none text-ink">Bitácora</span>
+            </span>
             <button
               type="button"
               onClick={() => setMenuOpen(false)}
