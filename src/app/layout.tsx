@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono, Caveat } from "next/font/google";
 import "./globals.css";
 import ServiceWorkerRegister from "@/components/ServiceWorkerRegister";
+import PreferenciasLocales from "@/components/PreferenciasLocales";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -98,6 +99,7 @@ export default function RootLayout({
           }}
         />
         {children}
+        <PreferenciasLocales />
         <ServiceWorkerRegister />
       </body>
     </html>
