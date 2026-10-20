@@ -8,6 +8,7 @@ import Gimnasio, { type GymRutina } from "@/components/Gimnasio";
 import type { GymSeccion } from "@/lib/parse-rutina";
 import { SignInButton } from "@/components/AuthButtons";
 import type { UserPreferences } from "@/types/preferences";
+import { NOMBRE_APP, nombreApp } from "@/lib/app-name";
 
 export const dynamic = "force-dynamic";
 
@@ -25,7 +26,7 @@ export default async function Home() {
             className="mx-auto mb-4 h-24 w-24 rounded-3xl shadow-sm"
           />
           <h1 className="mb-2 font-display text-6xl text-ink">
-            Bitácora
+            {NOMBRE_APP}
           </h1>
           <p className="mb-8 font-mono text-xs uppercase tracking-wider text-faint">
             Inicia sesión para acceder a tu agenda
@@ -110,6 +111,7 @@ export default async function Home() {
 
   return (
     <TabsShell
+      appName={await nombreApp()}
       gym={<Gimnasio key="gym" initial={rutina} />}
       userEmail={session.user.email ?? ""}
       todo={<Agenda key="todo" initial={tasks} preferences={preferences.taskColors} />}

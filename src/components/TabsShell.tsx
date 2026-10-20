@@ -30,12 +30,14 @@ export default function TabsShell({
   restaurants,
   gym,
   userEmail,
+  appName,
 }: {
   todo: React.ReactNode;
   gym: React.ReactNode;
   entertainment: React.ReactNode;
   restaurants: React.ReactNode;
   userEmail: string;
+  appName: string;
 }) {
   const [activeTab, setActiveTab] = useState<Tab>("todo");
   const [selectedDate, setSelectedDate] = useState<string>(hoyStr);
@@ -156,7 +158,7 @@ export default function TabsShell({
             <span className="flex items-center gap-2.5">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src="/icon-logo.svg" alt="" className="h-10 w-10 rounded-xl" />
-              <span className="font-display text-4xl leading-none text-ink">Bitácora</span>
+              <span className="font-display text-4xl leading-none text-ink">{appName}</span>
             </span>
             <button
               type="button"

@@ -1,7 +1,6 @@
-const CACHE_NAME = "bitacora-v6";
+const CACHE_NAME = "bitacora-v7";
 const STATIC_ASSETS = [
   "/",
-  "/manifest.json",
   "/icon-logo.svg",
   "/icon-192x192.png",
   "/background-totoro.jpeg",
@@ -209,7 +208,7 @@ self.addEventListener("message", (event) => {
 
 self.addEventListener("push", (event) => {
   const data = event.data?.json() ?? {};
-  const title = data.title || "Bitácora";
+  const title = data.title || "Agenda";
   const options = {
     body: data.body || "Tienes una tarea pendiente",
     icon: "/icon-192x192.png",

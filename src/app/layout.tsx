@@ -3,6 +3,7 @@ import { Geist, Geist_Mono, Caveat } from "next/font/google";
 import "./globals.css";
 import ServiceWorkerRegister from "@/components/ServiceWorkerRegister";
 import PreferenciasLocales from "@/components/PreferenciasLocales";
+import { nombreApp } from "@/lib/app-name";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -19,16 +20,19 @@ const caveat = Caveat({
   subsets: ["latin"],
 });
 
-export const metadata: Metadata = {
-  title: "Bitácora",
-  description: "Tu agenda personal de tareas y recordatorios",
-  manifest: "/manifest.json",
-  appleWebApp: {
-    capable: true,
-    statusBarStyle: "default",
-    title: "Bitácora",
-  },
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const nombre = await nombreApp();
+  return {
+    title: nombre,
+    description: "Tu agenda personal de tareas y recordatorios",
+    manifest: "/api/manifest",
+    appleWebApp: {
+      capable: true,
+      statusBarStyle: "default",
+      title: nombre,
+    },
+  };
+}
 
 export const viewport: Viewport = {
   themeColor: [

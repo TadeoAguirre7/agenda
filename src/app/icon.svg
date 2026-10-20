@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <!-- Bitácora: diario de cuero viejo con hojas amarillentas -->
+  <!-- Logo: diario de cuero viejo con hojas amarillentas -->
   <defs>
     <radialGradient id="cuero" cx="45%" cy="38%" r="75%">
       <stop offset="0" stop-color="#8a5a36"/>
