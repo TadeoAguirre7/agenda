@@ -71,8 +71,9 @@ export default function RootLayout({
             __html: `
               (function() {
                 try {
-                  var t = localStorage.getItem('theme');
-                  if (t === 'dark' || t === 'light') document.documentElement.dataset.theme = t;
+                  // por defecto claro; 'system' solo si el usuario lo eligió
+                  var t = localStorage.getItem('theme') || 'light';
+                  if (t !== 'system') document.documentElement.dataset.theme = t === 'dark' ? 'dark' : 'light';
                 } catch (e) {}
                 var s = localStorage.getItem('font-size');
                 if (s === 'small') document.documentElement.classList.add('text-sm');

@@ -45,17 +45,21 @@ function aplicarTema(t: Tema) {
   if (t === "system") delete html.dataset.theme;
   else html.dataset.theme = t;
   try {
-    if (t === "system") localStorage.removeItem("theme");
-    else localStorage.setItem("theme", t);
+    localStorage.setItem("theme", t);
   } catch {
     // ignore
   }
 }
 
+// lo guardado en este dispositivo (sin elección = claro)
 function temaActual(): Tema {
-  if (typeof document === "undefined") return "system";
-  const t = document.documentElement.dataset.theme;
-  return t === "dark" || t === "light" ? t : "system";
+  if (typeof window === "undefined") return "light";
+  try {
+    const t = localStorage.getItem("theme");
+    return t === "dark" || t === "system" ? t : "light";
+  } catch {
+    return "light";
+  }
 }
 
 function applyBg(dataUrl: string | null) {
