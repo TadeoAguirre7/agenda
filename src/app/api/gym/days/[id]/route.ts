@@ -68,9 +68,21 @@ export async function PATCH(
     return NextResponse.json({ error: "nada para actualizar" }, { status: 400 });
   }
 
+  // al terminar va al final; al deshacer vuelve a la posición que mandó el cliente
+  let posicion: number | undefined;
+  if (body.completado === true) {
+    const ultimo = await prisma.gymDay.aggregate({
+      where: { routineId: dia.routineId },
+      _max: { posicion: true },
+    });
+    posicion = (ultimo._max.posicion ?? 0) + 1;
+  } else if (Number.isInteger(body.posicion) && body.posicion >= 0 && body.posicion < 1000) {
+    posicion = body.posicion;
+  }
+
   const actualizado = await prisma.gymDay.update({
     where: { id },
-    data: { completadoAt },
+    data: { completadoAt, ...(posicion !== undefined && { posicion }) },
   });
   return NextResponse.json(actualizado);
 }

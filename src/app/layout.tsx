@@ -89,7 +89,8 @@ export default function RootLayout({
           }}
         />
       </head>
-      <body className="min-h-full">
+      {/* el script inline pone --bg-custom en <body> antes de hidratar */}
+      <body className="min-h-full" suppressHydrationWarning>
         <script
           dangerouslySetInnerHTML={{
             __html: `

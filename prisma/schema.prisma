@@ -135,6 +135,7 @@ model GymDay {
   subtitulo    String? // "Pierna + glúteos"
   secciones    Json // [{ titulo, tipo, items: [{ nombre, dosis, url }] }]
   completadoAt DateTime? // última vez que se hizo (los hechos van al final)
+  posicion     Int       @default(0) // orden en la lista (arrastrable; al terminar va al final)
 
   routine GymRoutine @relation(fields: [routineId], references: [id], onDelete: Cascade)
 

@@ -40,13 +40,14 @@ export async function POST(req: Request) {
         dias: {
           create: dias.map((d, i) => ({
             orden: i,
+            posicion: i,
             titulo: d.titulo,
             subtitulo: d.subtitulo,
             secciones: d.secciones,
           })),
         },
       },
-      include: { dias: { orderBy: { orden: "asc" } } },
+      include: { dias: { orderBy: { posicion: "asc" } } },
     });
   });
 

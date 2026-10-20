@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
   contarEjercicios,
   diaATexto,
@@ -13,6 +13,7 @@ import {
 export type GymDia = {
   id: string;
   orden: number;
+  posicion: number;
   titulo: string;
   subtitulo: string | null;
   secciones: GymSeccion[];
@@ -22,15 +23,9 @@ export type GymRutina = { notas: string[]; dias: GymDia[] } | null;
 
 const CHECKS_KEY = "gym-checks";
 
-// Nunca hechos primero (en su orden); después los hechos, del más viejo al
-// más reciente: el último día entrenado queda al final.
+// Orden guardado (arrastrable). Al terminar un día pasa al final.
 function ordenar(dias: GymDia[]): GymDia[] {
-  return [...dias].sort((a, b) => {
-    if (!a.completadoAt && !b.completadoAt) return a.orden - b.orden;
-    if (!a.completadoAt) return -1;
-    if (!b.completadoAt) return 1;
-    return a.completadoAt.localeCompare(b.completadoAt);
-  });
+  return [...dias].sort((a, b) => a.posicion - b.posicion || a.orden - b.orden);
 }
 
 function hace(iso: string): string {
@@ -77,8 +72,12 @@ export default function Gimnasio({ initial }: { initial: GymRutina }) {
   const [checks, setChecks] = useState<Record<string, string[]>>(() =>
     typeof window === "undefined" ? {} : leerChecks(),
   );
-  // ids cuyo estado abierto/cerrado difiere del default (el próximo arranca abierto)
-  const [abiertos, setAbiertos] = useState<Set<string>>(new Set());
+  // días desplegados; cada uno conserva su estado al reordenar.
+  // Al entrar, el primero de la lista arranca abierto.
+  const [abiertos, setAbiertos] = useState<Set<string>>(() => {
+    const primero = ordenar(initial?.dias ?? [])[0];
+    return new Set(primero ? [primero.id] : []);
+  });
   const [editandoId, setEditandoId] = useState<string | null>(null);
   const [editandoNotas, setEditandoNotas] = useState(false);
   const [importando, setImportando] = useState(false);
@@ -102,7 +101,129 @@ export default function Gimnasio({ initial }: { initial: GymRutina }) {
     return () => clearTimeout(t);
   }, [aviso]);
 
-  const dias = useMemo(() => ordenar(rutina?.dias ?? []), [rutina]);
+  const ordenados = useMemo(() => ordenar(rutina?.dias ?? []), [rutina]);
+  // mientras se arrastra, el orden vive acá; al soltar se guarda
+  const [ordenVivo, setOrdenVivo] = useState<string[] | null>(null);
+  const [arrastrandoId, setArrastrandoId] = useState<string | null>(null);
+  const itemsRef = useRef(new Map<string, HTMLLIElement>());
+  const dias = useMemo(() => {
+    if (!ordenVivo) return ordenados;
+    const porId = new Map(ordenados.map((d) => [d.id, d]));
+    return ordenVivo.map((id) => porId.get(id)!).filter(Boolean);
+  }, [ordenados, ordenVivo]);
+
+  async function guardarOrden(ids: string[]) {
+    const antes = rutina;
+    setRutina((r) =>
+      r
+        ? { ...r, dias: r.dias.map((d) => ({ ...d, posicion: ids.indexOf(d.id) })) }
+        : r,
+    );
+    const res = await fetch("/api/gym/orden", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ids }),
+    }).catch(() => null);
+    if (!res?.ok) {
+      setRutina(antes);
+      setAviso({ texto: "No se pudo guardar el orden. Intentá de nuevo." });
+    }
+  }
+
+  function moverA(id: string, destino: number) {
+    const ids = dias.map((d) => d.id);
+    const desde = ids.indexOf(id);
+    if (desde === -1 || destino === desde || destino < 0 || destino >= ids.length) return;
+    ids.splice(desde, 1);
+    ids.splice(destino, 0, id);
+    guardarOrden(ids);
+  }
+
+  // Arrastre con puntero (mouse y dedo). El día arrastrado sigue al puntero;
+  // los demás se deslizan (FLIP) cuando cambia el orden. Guarda al soltar.
+  const listaRef = useRef<HTMLOListElement>(null);
+  const arrastre = useRef<{ id: string; startY: number; topInicial: number; ultimoY: number } | null>(
+    null,
+  );
+  const topsPrevios = useRef(new Map<string, number>());
+
+  function seguirPuntero() {
+    const a = arrastre.current;
+    const el = a && itemsRef.current.get(a.id);
+    if (!a || !el) return;
+    const dy = a.ultimoY - a.startY - (el.offsetTop - a.topInicial);
+    el.style.transform = `translateY(${dy}px) scale(1.02)`;
+  }
+
+  // FLIP: los días que cambian de lugar se deslizan desde donde estaban
+  useLayoutEffect(() => {
+    const tops = new Map<string, number>();
+    itemsRef.current.forEach((el, id) => {
+      tops.set(id, el.offsetTop);
+      const antes = topsPrevios.current.get(id);
+      if (antes === undefined || antes === el.offsetTop || arrastre.current?.id === id) return;
+      el.style.transition = "none";
+      el.style.transform = `translateY(${antes - el.offsetTop}px)`;
+      void el.offsetHeight; // forzar reflow
+      el.style.transition = "transform 200ms cubic-bezier(.2,.8,.2,1)";
+      el.style.transform = "";
+    });
+    topsPrevios.current = tops;
+    seguirPuntero();
+  }, [dias]);
+
+  function empezarArrastre(e: React.PointerEvent<HTMLButtonElement>, id: string) {
+    const el = itemsRef.current.get(id);
+    const lista = listaRef.current;
+    if (!el || !lista) return;
+    e.preventDefault();
+    e.currentTarget.setPointerCapture(e.pointerId);
+    const inicial = dias.map((d) => d.id);
+    let actual = inicial;
+    arrastre.current = { id, startY: e.clientY, topInicial: el.offsetTop, ultimoY: e.clientY };
+    el.style.transition = "box-shadow 150ms";
+    setArrastrandoId(id);
+    setOrdenVivo(inicial);
+
+    const mover = (ev: PointerEvent) => {
+      const a = arrastre.current;
+      if (!a) return;
+      a.ultimoY = ev.clientY;
+      seguirPuntero();
+      // centro del día arrastrado, en coordenadas de la lista
+      const centro = a.topInicial + (ev.clientY - a.startY) + el.offsetHeight / 2;
+      const otros = actual.filter((x) => x !== id);
+      let destino = otros.length;
+      for (let i = 0; i < otros.length; i++) {
+        const o = itemsRef.current.get(otros[i]);
+        if (o && centro < o.offsetTop + o.offsetHeight / 2) {
+          destino = i;
+          break;
+        }
+      }
+      const next = [...otros.slice(0, destino), id, ...otros.slice(destino)];
+      if (next.join() !== actual.join()) {
+        actual = next;
+        setOrdenVivo(next);
+      }
+    };
+    const soltar = () => {
+      window.removeEventListener("pointermove", mover);
+      window.removeEventListener("pointerup", soltar);
+      window.removeEventListener("pointercancel", soltar);
+      arrastre.current = null;
+      // vuelve suave a su lugar final
+      el.style.transition = "transform 200ms cubic-bezier(.2,.8,.2,1), box-shadow 200ms";
+      el.style.transform = "";
+      setArrastrandoId(null);
+      setOrdenVivo(null);
+      if (actual.join() !== inicial.join()) guardarOrden(actual);
+    };
+    window.addEventListener("pointermove", mover);
+    window.addEventListener("pointerup", soltar);
+    window.addEventListener("pointercancel", soltar);
+  }
+
 
   function toggleCheck(diaId: string, clave: string) {
     setChecks((prev) => {
@@ -114,18 +235,35 @@ export default function Gimnasio({ initial }: { initial: GymRutina }) {
     });
   }
 
-  function setCompletado(id: string, completadoAt: string | null) {
+  function setCompletado(id: string, completadoAt: string | null, posicion?: number) {
     setRutina((r) =>
-      r ? { ...r, dias: r.dias.map((d) => (d.id === id ? { ...d, completadoAt } : d)) } : r,
+      r
+        ? {
+            ...r,
+            dias: r.dias.map((d) =>
+              d.id === id ? { ...d, completadoAt, posicion: posicion ?? d.posicion } : d,
+            ),
+          }
+        : r,
     );
   }
 
   async function terminar(dia: GymDia) {
     const previo = dia.completadoAt;
+    const prevPos = dia.posicion;
     const prevChecks = checks[dia.id] ?? [];
-    setCompletado(dia.id, new Date().toISOString());
+    const alFinal = Math.max(...(rutina?.dias ?? []).map((d) => d.posicion)) + 1;
+    setCompletado(dia.id, new Date().toISOString(), alFinal);
     setChecks((p) => ({ ...p, [dia.id]: [] }));
-    setAbiertos(new Set());
+    // el terminado se cierra y el nuevo primero se abre
+    const prevAbiertos = abiertos;
+    const nuevoPrimero = ordenados.find((d) => d.id !== dia.id);
+    setAbiertos((a) => {
+      const n = new Set(a);
+      n.delete(dia.id);
+      if (nuevoPrimero) n.add(nuevoPrimero.id);
+      return n;
+    });
 
     const res = await fetch(`/api/gym/days/${dia.id}`, {
       method: "PATCH",
@@ -134,8 +272,9 @@ export default function Gimnasio({ initial }: { initial: GymRutina }) {
     }).catch(() => null);
 
     if (!res?.ok) {
-      setCompletado(dia.id, previo);
+      setCompletado(dia.id, previo, prevPos);
       setChecks((p) => ({ ...p, [dia.id]: prevChecks }));
+      setAbiertos(prevAbiertos);
       setAviso({ texto: "No se pudo guardar. Revisá tu conexión e intentá de nuevo." });
       return;
     }
@@ -143,13 +282,14 @@ export default function Gimnasio({ initial }: { initial: GymRutina }) {
     setAviso({
       texto: `${dia.titulo} pasó al final de la lista`,
       deshacer: async () => {
-        setCompletado(dia.id, previo);
+        setCompletado(dia.id, previo, prevPos);
         setChecks((p) => ({ ...p, [dia.id]: prevChecks }));
         setAviso(null);
+        setAbiertos(prevAbiertos);
         await fetch(`/api/gym/days/${dia.id}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ completadoAt: previo }),
+          body: JSON.stringify({ completadoAt: previo, posicion: prevPos }),
         }).catch(() => null);
       },
     });
@@ -329,20 +469,63 @@ export default function Gimnasio({ initial }: { initial: GymRutina }) {
           </button>
         </div>
       ) : (
-        <ol className="space-y-3">
+        <ol ref={listaRef} className="relative space-y-3">
           {dias.map((dia, idx) => {
             const proximo = idx === 0;
-            const abierto = proximo !== abiertos.has(dia.id);
+            const abierto = abiertos.has(dia.id);
             const editando = editandoId === dia.id;
             const n = contarEjercicios(dia);
             return (
               <li
                 key={dia.id}
+                ref={(el) => {
+                  if (el) itemsRef.current.set(dia.id, el);
+                  else itemsRef.current.delete(dia.id);
+                }}
                 className={`rounded-xl border bg-panel transition motion-safe:animate-[fadeIn_.25s_ease-out] ${
                   proximo ? "border-ink/80 shadow-sm" : "border-rule"
                 }`}
+                style={
+                  arrastrandoId === dia.id
+                    ? {
+                        boxShadow: "0 18px 40px rgba(0,0,0,.22)",
+                        position: "relative",
+                        zIndex: 10,
+                        cursor: "grabbing",
+                        willChange: "transform",
+                      }
+                    : { position: "relative" }
+                }
               >
                 <div className={`flex items-start gap-2 ${proximo ? "p-5 sm:p-6" : "px-5 py-4"}`}>
+                  {dias.length > 1 && (
+                    <button
+                      type="button"
+                      aria-label={`Mover ${dia.titulo} (posición ${idx + 1} de ${dias.length}). Usá las flechas arriba y abajo.`}
+                      title="Arrastrá para reordenar"
+                      onPointerDown={(e) => empezarArrastre(e, dia.id)}
+                      onKeyDown={(e) => {
+                        if (e.key === "ArrowUp") {
+                          e.preventDefault();
+                          moverA(dia.id, idx - 1);
+                        } else if (e.key === "ArrowDown") {
+                          e.preventDefault();
+                          moverA(dia.id, idx + 1);
+                        }
+                      }}
+                      className="-ml-2 flex shrink-0 cursor-grab select-none items-center justify-center rounded-md text-faint transition hover:bg-ink/5 hover:text-ink active:cursor-grabbing"
+                      style={{ width: 28, height: 36, touchAction: "none" }}
+                    >
+                      <svg viewBox="0 0 10 16" width="10" height="16" fill="currentColor" aria-hidden>
+                        <circle cx="2" cy="3" r="1.5" />
+                        <circle cx="8" cy="3" r="1.5" />
+                        <circle cx="2" cy="8" r="1.5" />
+                        <circle cx="8" cy="8" r="1.5" />
+                        <circle cx="2" cy="13" r="1.5" />
+                        <circle cx="8" cy="13" r="1.5" />
+                      </svg>
+                    </button>
+                  )}
                   <button
                     type="button"
                     aria-expanded={abierto}
@@ -461,7 +644,8 @@ export default function Gimnasio({ initial }: { initial: GymRutina }) {
           onImportada={(r) => {
             setRutina(r);
             setChecks({});
-            setAbiertos(new Set());
+            const primero = r ? ordenar(r.dias)[0] : undefined;
+            setAbiertos(new Set(primero ? [primero.id] : []));
             setImportando(false);
             setAviso({ texto: `Rutina importada: ${r?.dias.length ?? 0} días` });
           }}

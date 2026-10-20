@@ -98,7 +98,7 @@ export default async function Home() {
 
   const gymRow = await prisma.gymRoutine.findUnique({
     where: { userId },
-    include: { dias: { orderBy: { orden: "asc" } } },
+    include: { dias: { orderBy: { posicion: "asc" } } },
   });
   const rutina: GymRutina = gymRow
     ? {
@@ -106,6 +106,7 @@ export default async function Home() {
         dias: gymRow.dias.map((d) => ({
           id: d.id,
           orden: d.orden,
+          posicion: d.posicion,
           titulo: d.titulo,
           subtitulo: d.subtitulo,
           secciones: d.secciones as GymSeccion[],
