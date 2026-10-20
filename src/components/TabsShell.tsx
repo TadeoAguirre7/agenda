@@ -31,6 +31,8 @@ export default function TabsShell({
   gym,
   userEmail,
   appName,
+  tabsOcultas: ocultasIniciales,
+  fondoVersion,
 }: {
   todo: React.ReactNode;
   gym: React.ReactNode;
@@ -38,13 +40,31 @@ export default function TabsShell({
   restaurants: React.ReactNode;
   userEmail: string;
   appName: string;
+  tabsOcultas: Tab[];
+  fondoVersion: number | null;
 }) {
   const [activeTab, setActiveTab] = useState<Tab>("todo");
   const [selectedDate, setSelectedDate] = useState<string>(hoyStr);
   const [calAnchor, setCalAnchor] = useState<DOMRect | null>(null);
   const cerrarCal = useCallback(() => setCalAnchor(null), []);
   const [menuOpen, setMenuOpen] = useState(false);
-  const actual = TABS.find((t) => t.id === activeTab)!;
+  const [ocultas, setOcultas] = useState<Tab[]>(ocultasIniciales);
+  const [seccionesOpen, setSeccionesOpen] = useState(false);
+  const visibles = TABS.filter((t) => t.id === "todo" || !ocultas.includes(t.id));
+  const actual = visibles.find((t) => t.id === activeTab) ?? TABS[0];
+
+  async function toggleSeccion(id: Tab) {
+    const antes = ocultas;
+    const next = ocultas.includes(id) ? ocultas.filter((t) => t !== id) : [...ocultas, id];
+    setOcultas(next);
+    if (next.includes(activeTab)) setActiveTab("todo");
+    const res = await fetch("/api/user/preferences", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ tabsOcultas: next }),
+    }).catch(() => null);
+    if (!res?.ok) setOcultas(antes);
+  }
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -131,7 +151,10 @@ export default function TabsShell({
                     anchor={calAnchor}
                   />
                 )}
-                <SettingsPanel />
+                <SettingsPanel
+                  onSecciones={() => setSeccionesOpen(true)}
+                  fondoVersion={fondoVersion}
+                />
                 <SignOutButton title={userEmail} />
               </div>
             </div>
@@ -170,7 +193,7 @@ export default function TabsShell({
             </button>
           </div>
           <ul className="flex-1 px-3">
-            {TABS.map((tab) => {
+            {visibles.map((tab) => {
               const on = tab.id === activeTab;
               return (
                 <li key={tab.id}>
@@ -203,6 +226,90 @@ export default function TabsShell({
           </ul>
           <p className="truncate px-6 pb-6 font-mono text-[10px] text-faint">{userEmail}</p>
         </nav>
+
+        {seccionesOpen && (
+          <div
+            className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 sm:items-center sm:px-5"
+            onClick={() => setSeccionesOpen(false)}
+            onKeyDown={(e) => e.key === "Escape" && setSeccionesOpen(false)}
+          >
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="secciones-titulo"
+              className="w-full rounded-t-2xl border border-rule bg-paper p-5 shadow-xl sm:rounded-2xl"
+              style={{ maxWidth: 448 }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-baseline justify-between">
+                <h2
+                  id="secciones-titulo"
+                  className="font-mono text-xs uppercase tracking-[0.2em] text-ink"
+                >
+                  Secciones
+                </h2>
+                <button
+                  type="button"
+                  autoFocus
+                  onClick={() => setSeccionesOpen(false)}
+                  aria-label="Cerrar"
+                  className="font-mono text-xs text-faint hover:text-ink"
+                >
+                  ✕
+                </button>
+              </div>
+              <p className="mt-2 text-sm text-faint">
+                Elegí qué secciones aparecen en el menú. Se guarda en tu cuenta.
+              </p>
+              <ul className="mt-4 divide-y divide-rule">
+                {TABS.map((tab) => {
+                  const fija = tab.id === "todo";
+                  const on = fija || !ocultas.includes(tab.id);
+                  return (
+                    <li key={tab.id} className="flex items-center gap-4 py-3">
+                      <span className="min-w-0 flex-1">
+                        <span className="block font-mono text-xs uppercase tracking-wider text-ink">
+                          {tab.label}
+                        </span>
+                        <span className="block text-xs text-faint">
+                          {fija ? "Siempre activa" : tab.detalle}
+                        </span>
+                      </span>
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={on}
+                        aria-label={`${on ? "Desactivar" : "Activar"} ${tab.label}`}
+                        disabled={fija}
+                        onClick={() => toggleSeccion(tab.id)}
+                        className="relative shrink-0 rounded-full transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink disabled:cursor-not-allowed"
+                        style={{
+                          width: 44,
+                          height: 24,
+                          background: on ? "var(--ink)" : "var(--rule)",
+                          opacity: fija ? 0.5 : 1,
+                        }}
+                      >
+                        <span
+                          aria-hidden
+                          className="absolute rounded-full shadow"
+                          style={{
+                            top: 2,
+                            left: on ? 22 : 2,
+                            width: 20,
+                            height: 20,
+                            background: "var(--paper)",
+                            transition: "left 150ms ease-out",
+                          }}
+                        />
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          </div>
+        )}
 
         {activeTab === "todo" && todo}
         {activeTab === "gym" && gym}

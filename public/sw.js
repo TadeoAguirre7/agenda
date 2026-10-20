@@ -1,10 +1,8 @@
-const CACHE_NAME = "bitacora-v7";
+const CACHE_NAME = "bitacora-v8";
 const STATIC_ASSETS = [
   "/",
   "/icon-logo.svg",
   "/icon-192x192.png",
-  "/background-totoro.jpeg",
-  "/background.jpeg",
 ];
 
 const API_BASE = "/api/";

@@ -2,11 +2,8 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 
-export type UserPreferences = {
-  taskColors?: Partial<Record<"alta" | "media" | "baja", string>>;
-  entertainmentColors?: Partial<Record<"pelis" | "series" | "musica" | "libros" | "recetas", string>>;
-  restaurantColors?: Partial<Record<"restaurantes" | "cafes" | "museos" | "ferias" | "bares", string>>;
-};
+import type { UserPreferences } from "@/types/preferences";
+export type { UserPreferences };
 
 // GET /api/user/preferences
 export async function GET() {
@@ -36,8 +33,15 @@ export async function PATCH(req: Request) {
     select: { preferences: true },
   }))?.preferences as UserPreferences | undefined;
 
+  // secciones desactivadas: solo las opcionales (To do list siempre visible)
+  const OPCIONALES = ["gym", "entertainment", "restaurants"] as const;
+  const tabsOcultas = Array.isArray(body.tabsOcultas)
+    ? OPCIONALES.filter((t) => (body.tabsOcultas as unknown[]).includes(t))
+    : existing?.tabsOcultas;
+
   const merged: UserPreferences = {
     ...existing,
+    tabsOcultas,
     taskColors: { ...existing?.taskColors, ...body.taskColors },
     entertainmentColors: { ...existing?.entertainmentColors, ...body.entertainmentColors },
     restaurantColors: { ...existing?.restaurantColors, ...body.restaurantColors },

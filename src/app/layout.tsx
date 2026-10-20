@@ -95,8 +95,9 @@ export default function RootLayout({
             __html: `
               (function() {
                 try {
-                  var bg = localStorage.getItem('bg-image');
-                  if (bg) document.body.style.setProperty('--bg-custom', 'url(' + bg + ')');
+                  var bg = localStorage.getItem('bg-url');
+                  if (bg && /^\\/api\\/user\\/background\\?v=\\d+$/.test(bg))
+                    document.body.style.setProperty('--bg-custom', 'url("' + bg + '")');
                 } catch(e) {}
               })();
             `,

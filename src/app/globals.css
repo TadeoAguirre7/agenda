@@ -12,6 +12,7 @@
   --acento: #c9d6ec; /* azul pálido (selección) */
   --peligro: #c8473d; /* rojo lacre (eliminar) */
   --velo: transparent; /* capa sobre el fondo de pantalla */
+  --punto: rgba(26, 31, 36, 0.09); /* cuadrícula de puntos del fondo por defecto */
   color-scheme: light;
 }
 
@@ -29,6 +30,7 @@
   --acento: #2d3b58;
   --peligro: #e3675b;
   --velo: rgba(10, 13, 19, 0.78);
+  --punto: rgba(231, 227, 216, 0.07);
   color-scheme: dark;
 }
 
@@ -45,6 +47,7 @@
     --acento: #2d3b58;
     --peligro: #e3675b;
     --velo: rgba(10, 13, 19, 0.78);
+    --punto: rgba(231, 227, 216, 0.07);
     color-scheme: dark;
   }
 }
@@ -89,14 +92,21 @@ body::before {
   position: fixed;
   inset: 0;
   z-index: -1;
+  /* Sin foto: papel con cuadrícula de puntos. Con foto: la foto + velo. */
+  background:
+    radial-gradient(var(--punto) 1px, transparent 1.4px) 0 0 / 22px 22px,
+    var(--paper);
+}
+
+body[style*="--bg-custom"]::before {
   background:
     linear-gradient(var(--velo), var(--velo)),
-    var(--bg-custom, url("/background-stars.jpeg")) center / cover no-repeat;
+    var(--bg-custom) center / cover no-repeat;
 }
 
 /* Mobile: atenuar el fondo para legibilidad */
 @media (max-width: 640px) {
-  body::before {
+  body[style*="--bg-custom"]::before {
     opacity: 0.35;
   }
 }

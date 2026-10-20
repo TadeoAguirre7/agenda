@@ -91,6 +91,11 @@ export default async function Home() {
     completada: i.completada,
   }));
 
+  const fondoRow = await prisma.userBackground.findUnique({
+    where: { userId },
+    select: { updatedAt: true },
+  });
+
   const gymRow = await prisma.gymRoutine.findUnique({
     where: { userId },
     include: { dias: { orderBy: { orden: "asc" } } },
@@ -111,6 +116,8 @@ export default async function Home() {
 
   return (
     <TabsShell
+      fondoVersion={fondoRow?.updatedAt.getTime() ?? null}
+      tabsOcultas={preferences.tabsOcultas ?? []}
       appName={await nombreApp()}
       gym={<Gimnasio key="gym" initial={rutina} />}
       userEmail={session.user.email ?? ""}

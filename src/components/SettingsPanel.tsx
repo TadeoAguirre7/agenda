@@ -11,7 +11,8 @@ const CLASS_MAP: Record<Size, string> = {
   large: "text-lg",
 };
 
-const BG_KEY = "bg-image";
+const BG_LEGACY_KEY = "bg-image"; // fondo viejo guardado solo en el dispositivo
+const BG_URL_KEY = "bg-url"; // espejo local de la URL, para pintarlo antes de hidratar
 const MAX_W = 1920;
 const MAX_H = 1920;
 const QUALITY = 0.7;
@@ -62,13 +63,30 @@ function temaActual(): Tema {
   }
 }
 
-function applyBg(dataUrl: string | null) {
-  // Sets --bg-custom on body; body::before in globals.css uses it
-  if (dataUrl) {
-    document.body.style.setProperty("--bg-custom", `url(${dataUrl})`);
-  } else {
-    document.body.style.removeProperty("--bg-custom");
+// Fondo de la cuenta: /api/user/background?v=<versión>. body::before lo usa.
+function applyBg(version: number | null) {
+  try {
+    if (version) {
+      const url = `/api/user/background?v=${version}`;
+      document.body.style.setProperty("--bg-custom", `url("${url}")`);
+      localStorage.setItem(BG_URL_KEY, url);
+    } else {
+      document.body.style.removeProperty("--bg-custom");
+      localStorage.removeItem(BG_URL_KEY);
+    }
+  } catch {
+    // ignore
   }
+}
+
+async function subirFondo(dataUrl: string): Promise<number | null> {
+  const res = await fetch("/api/user/background", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ dataUrl }),
+  }).catch(() => null);
+  const data = res?.ok ? await res.json().catch(() => null) : null;
+  return typeof data?.version === "number" ? data.version : null;
 }
 
 function compressImage(file: File): Promise<string> {
@@ -99,30 +117,47 @@ function compressImage(file: File): Promise<string> {
   });
 }
 
-export default function SettingsPanel() {
+export default function SettingsPanel({
+  onSecciones,
+  fondoVersion,
+}: {
+  onSecciones: () => void;
+  fondoVersion: number | null;
+}) {
   const [open, setOpen] = useState(false);
   const [anchor, setAnchor] = useState<DOMRect | null>(null);
   const [tema, setTema] = useState<Tema>(temaActual);
   const [size, setSize] = useState<Size>(() => currentSize());
-  // solo se usa con el panel abierto (cliente), no afecta la hidratación
-  const [hasBg, setHasBg] = useState(() => {
-    try {
-      return typeof window !== "undefined" && !!localStorage.getItem(BG_KEY);
-    } catch {
-      return false;
-    }
-  });
+  const [version, setVersion] = useState<number | null>(fondoVersion);
+  const [subiendo, setSubiendo] = useState(false);
+  const [errorFondo, setErrorFondo] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    // Apply saved bg on mount
+    applyBg(version);
+  }, [version]);
+
+  // Migración: si este dispositivo tenía un fondo local y la cuenta no tiene
+  // uno, se sube a la cuenta una sola vez.
+  useEffect(() => {
+    let legado: string | null = null;
     try {
-      const saved = localStorage.getItem(BG_KEY);
-      if (saved) applyBg(saved);
+      legado = localStorage.getItem(BG_LEGACY_KEY);
     } catch {
-      // ignore
+      return;
     }
-  }, []);
+    if (!legado) return;
+    if (fondoVersion) {
+      localStorage.removeItem(BG_LEGACY_KEY);
+      return;
+    }
+    subirFondo(legado).then((v) => {
+      if (v) {
+        localStorage.removeItem(BG_LEGACY_KEY);
+        setVersion(v);
+      }
+    });
+  }, [fondoVersion]);
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -146,26 +181,28 @@ export default function SettingsPanel() {
   async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
+    setSubiendo(true);
+    setErrorFondo(null);
     try {
-      const dataUrl = await compressImage(file);
-      localStorage.setItem(BG_KEY, dataUrl);
-      applyBg(dataUrl);
-      setHasBg(true);
+      const v = await subirFondo(await compressImage(file));
+      if (v) setVersion(v);
+      else setErrorFondo("No se pudo guardar la foto. Probá con otra o revisá tu conexión.");
     } catch {
-      // ignore
+      setErrorFondo("No se pudo leer la imagen.");
     }
+    setSubiendo(false);
     // Reset so same file can be re-selected
     e.target.value = "";
   }
 
-  function removeBg() {
-    try {
-      localStorage.removeItem(BG_KEY);
-    } catch {
-      // ignore
+  async function removeBg() {
+    const antes = version;
+    setVersion(null);
+    const res = await fetch("/api/user/background", { method: "DELETE" }).catch(() => null);
+    if (!res?.ok) {
+      setVersion(antes);
+      setErrorFondo("No se pudo quitar el fondo. Intentá de nuevo.");
     }
-    applyBg(null);
-    setHasBg(false);
   }
 
   return (
@@ -306,11 +343,12 @@ export default function SettingsPanel() {
               <div className="flex gap-2">
                 <button
                   onClick={() => fileRef.current?.click()}
+                  disabled={subiendo}
                   className="flex-1 rounded-full border border-rule px-2 py-1.5 font-mono text-xs text-ink transition hover:border-ink"
                 >
-                  {hasBg ? "Cambiar foto" : "Elegir foto"}
+                  {subiendo ? "Guardando…" : version ? "Cambiar foto" : "Elegir foto"}
                 </button>
-                {hasBg && (
+                {version && (
                   <button
                     onClick={removeBg}
                     className="rounded-full border border-rule px-3 py-1.5 font-mono text-xs text-faint transition hover:border-peligro hover:text-peligro"
@@ -320,8 +358,25 @@ export default function SettingsPanel() {
                 )}
               </div>
               <p className="mt-2 font-mono text-[10px] text-faint/80">
-                Se guarda solo en este dispositivo.
+                {errorFondo ?? "Se guarda en tu cuenta: lo ves igual en todos tus dispositivos."}
               </p>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setOpen(false);
+                  onSecciones();
+                }}
+                className="mt-5 flex w-full items-center justify-between border-t border-rule pt-4 text-left"
+              >
+                <span>
+                  <span className="block font-mono text-[10px] uppercase tracking-wider text-faint">
+                    Secciones
+                  </span>
+                  <span className="block text-xs text-ink">Elegí qué secciones usar</span>
+                </span>
+                <span aria-hidden className="font-mono text-sm text-faint">›</span>
+              </button>
             </div>
           </>,
           document.body,
