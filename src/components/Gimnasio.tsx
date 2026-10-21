@@ -101,16 +101,10 @@ export default function Gimnasio({ initial }: { initial: GymRutina }) {
     return () => clearTimeout(t);
   }, [aviso]);
 
-  const ordenados = useMemo(() => ordenar(rutina?.dias ?? []), [rutina]);
-  // mientras se arrastra, el orden vive acá; al soltar se guarda
-  const [ordenVivo, setOrdenVivo] = useState<string[] | null>(null);
+  const dias = useMemo(() => ordenar(rutina?.dias ?? []), [rutina]);
+  const ordenados = dias;
   const [arrastrandoId, setArrastrandoId] = useState<string | null>(null);
   const itemsRef = useRef(new Map<string, HTMLLIElement>());
-  const dias = useMemo(() => {
-    if (!ordenVivo) return ordenados;
-    const porId = new Map(ordenados.map((d) => [d.id, d]));
-    return ordenVivo.map((id) => porId.get(id)!).filter(Boolean);
-  }, [ordenados, ordenVivo]);
 
   async function guardarOrden(ids: string[]) {
     const antes = rutina;
@@ -139,91 +133,113 @@ export default function Gimnasio({ initial }: { initial: GymRutina }) {
     guardarOrden(ids);
   }
 
-  // Arrastre con puntero (mouse y dedo). El día arrastrado sigue al puntero;
-  // los demás se deslizan (FLIP) cuando cambia el orden. Guarda al soltar.
-  const listaRef = useRef<HTMLOListElement>(null);
-  const arrastre = useRef<{ id: string; startY: number; topInicial: number; ultimoY: number } | null>(
-    null,
-  );
+  // Arrastre con puntero (mouse y dedo). Durante el arrastre NO se mueve nada
+  // en el DOM (en mobile, mover el nodo tocado cancela el toque): el día sigue
+  // al puntero y los vecinos se corren con transform. El orden real se aplica
+  // al soltar, y el día arrastrado se acomoda con una animación (FLIP).
+  const EASE = "transform 200ms cubic-bezier(.2,.8,.2,1)";
   const topsPrevios = useRef(new Map<string, number>());
+  const alSoltar = useRef<{ id: string; topVisual: number } | null>(null);
 
-  function seguirPuntero() {
-    const a = arrastre.current;
-    const el = a && itemsRef.current.get(a.id);
-    if (!a || !el) return;
-    const dy = a.ultimoY - a.startY - (el.offsetTop - a.topInicial);
-    el.style.transform = `translateY(${dy}px) scale(1.02)`;
-  }
-
-  // FLIP: los días que cambian de lugar se deslizan desde donde estaban
   useLayoutEffect(() => {
+    const pendiente = alSoltar.current;
+    alSoltar.current = null;
     const tops = new Map<string, number>();
     itemsRef.current.forEach((el, id) => {
       tops.set(id, el.offsetTop);
+      if (pendiente) {
+        // los vecinos ya estaban visualmente en su nuevo lugar: sin animación
+        el.style.transition = "none";
+        el.style.transform = "";
+        if (id !== pendiente.id) return;
+        el.style.transform = `translateY(${pendiente.topVisual - el.offsetTop}px)`;
+        void el.offsetHeight;
+        el.style.transition = `${EASE}, box-shadow 200ms`;
+        el.style.transform = "";
+        return;
+      }
+      // cambios de orden fuera del arrastre (p. ej. "Terminé el día")
       const antes = topsPrevios.current.get(id);
-      if (antes === undefined || antes === el.offsetTop || arrastre.current?.id === id) return;
+      if (antes === undefined || antes === el.offsetTop) return;
       el.style.transition = "none";
       el.style.transform = `translateY(${antes - el.offsetTop}px)`;
-      void el.offsetHeight; // forzar reflow
-      el.style.transition = "transform 200ms cubic-bezier(.2,.8,.2,1)";
+      void el.offsetHeight;
+      el.style.transition = EASE;
       el.style.transform = "";
     });
     topsPrevios.current = tops;
-    seguirPuntero();
-  }, [dias]);
+  }, [dias, arrastrandoId]);
 
   function empezarArrastre(e: React.PointerEvent<HTMLButtonElement>, id: string) {
     const el = itemsRef.current.get(id);
-    const lista = listaRef.current;
-    if (!el || !lista) return;
+    if (!el) return;
     e.preventDefault();
-    e.currentTarget.setPointerCapture(e.pointerId);
-    const inicial = dias.map((d) => d.id);
-    let actual = inicial;
-    arrastre.current = { id, startY: e.clientY, topInicial: el.offsetTop, ultimoY: e.clientY };
+    try {
+      e.currentTarget.setPointerCapture(e.pointerId);
+    } catch {
+      // ignore
+    }
+    const ids = dias.map((d) => d.id);
+    const desde = ids.indexOf(id);
+    const medidas = ids.map((x) => {
+      const n = itemsRef.current.get(x)!;
+      return { id: x, top: n.offsetTop, alto: n.offsetHeight };
+    });
+    const top0 = medidas[desde].top;
+    const alto = medidas[desde].alto;
+    const sig = medidas[desde + 1] ?? medidas[desde - 1];
+    const hueco = sig
+      ? Math.abs(sig.top - (sig.top > top0 ? top0 + alto : sig.top + sig.alto)) || 12
+      : 12;
+    const paso = alto + hueco;
+    const startY = e.clientY;
+    let dy = 0;
+    let destino = desde;
+
     el.style.transition = "box-shadow 150ms";
     setArrastrandoId(id);
-    setOrdenVivo(inicial);
 
     const mover = (ev: PointerEvent) => {
-      const a = arrastre.current;
-      if (!a) return;
-      a.ultimoY = ev.clientY;
-      seguirPuntero();
-      // centro del día arrastrado, en coordenadas de la lista
-      const centro = a.topInicial + (ev.clientY - a.startY) + el.offsetHeight / 2;
-      const otros = actual.filter((x) => x !== id);
-      let destino = otros.length;
-      for (let i = 0; i < otros.length; i++) {
-        const o = itemsRef.current.get(otros[i]);
-        if (o && centro < o.offsetTop + o.offsetHeight / 2) {
-          destino = i;
-          break;
-        }
-      }
-      const next = [...otros.slice(0, destino), id, ...otros.slice(destino)];
-      if (next.join() !== actual.join()) {
-        actual = next;
-        setOrdenVivo(next);
-      }
+      ev.preventDefault();
+      dy = ev.clientY - startY;
+      el.style.transform = `translateY(${dy}px) scale(1.02)`;
+      const centro = top0 + dy + alto / 2;
+      // posición destino = cuántos vecinos quedan por encima del centro
+      destino = medidas.filter((m, i) => i !== desde && m.top + m.alto / 2 < centro).length;
+      medidas.forEach((m, i) => {
+        if (i === desde) return;
+        const n = itemsRef.current.get(m.id);
+        if (!n) return;
+        let corrida = 0;
+        if (i > desde && i <= destino) corrida = -paso;
+        else if (i < desde && i >= destino) corrida = paso;
+        n.style.transition = EASE;
+        n.style.transform = corrida ? `translateY(${corrida}px)` : "";
+      });
     };
     const soltar = () => {
       window.removeEventListener("pointermove", mover);
       window.removeEventListener("pointerup", soltar);
       window.removeEventListener("pointercancel", soltar);
-      arrastre.current = null;
-      // vuelve suave a su lugar final
-      el.style.transition = "transform 200ms cubic-bezier(.2,.8,.2,1), box-shadow 200ms";
-      el.style.transform = "";
+      if (destino === desde) {
+        // sin cambios: todo vuelve a su lugar
+        itemsRef.current.forEach((n) => {
+          n.style.transition = `${EASE}, box-shadow 200ms`;
+          n.style.transform = "";
+        });
+        setArrastrandoId(null);
+        return;
+      }
+      const nuevos = ids.filter((x) => x !== id);
+      nuevos.splice(destino, 0, id);
+      alSoltar.current = { id, topVisual: top0 + dy };
       setArrastrandoId(null);
-      setOrdenVivo(null);
-      if (actual.join() !== inicial.join()) guardarOrden(actual);
+      guardarOrden(nuevos);
     };
-    window.addEventListener("pointermove", mover);
+    window.addEventListener("pointermove", mover, { passive: false });
     window.addEventListener("pointerup", soltar);
     window.addEventListener("pointercancel", soltar);
   }
-
 
   function toggleCheck(diaId: string, clave: string) {
     setChecks((prev) => {
@@ -469,7 +485,7 @@ export default function Gimnasio({ initial }: { initial: GymRutina }) {
           </button>
         </div>
       ) : (
-        <ol ref={listaRef} className="relative space-y-3">
+        <ol className="relative space-y-3">
           {dias.map((dia, idx) => {
             const proximo = idx === 0;
             const abierto = abiertos.has(dia.id);
@@ -514,7 +530,13 @@ export default function Gimnasio({ initial }: { initial: GymRutina }) {
                         }
                       }}
                       className="-ml-2 flex shrink-0 cursor-grab select-none items-center justify-center rounded-md text-faint transition hover:bg-ink/5 hover:text-ink active:cursor-grabbing"
-                      style={{ width: 28, height: 36, touchAction: "none" }}
+                      style={{
+                        width: 36,
+                        height: 44,
+                        touchAction: "none",
+                        WebkitUserSelect: "none",
+                        WebkitTouchCallout: "none",
+                      }}
                     >
                       <svg viewBox="0 0 10 16" width="10" height="16" fill="currentColor" aria-hidden>
                         <circle cx="2" cy="3" r="1.5" />
