@@ -3,7 +3,7 @@
 import { useCallback, useRef, useState } from "react";
 import ColorDot from "@/components/ColorDot";
 import AnalogTimePicker from "@/components/AnalogTimePicker";
-import DayTimeline, { BotonEliminar } from "@/components/DayTimeline";
+import DayTimeline, { BotonEliminar, IconoTacho } from "@/components/DayTimeline";
 import MiniCalendar from "@/components/MiniCalendar";
 import DuracionPicker, {
   fmtDuracion,
@@ -929,6 +929,15 @@ export default function Agenda({
                 className="font-mono text-xs uppercase tracking-wider text-faint underline-offset-4 hover:underline"
               >
                 Cancelar
+              </button>
+              {/* en mobile es la forma de borrar (el tacho no se muestra en la grilla) */}
+              <button
+                type="button"
+                onClick={() => setABorrar(t)}
+                className="ml-auto flex items-center gap-1.5 rounded-full px-3 py-1.5 font-mono text-xs uppercase tracking-wider text-peligro transition hover:bg-peligro/10"
+              >
+                <IconoTacho className="h-3.5 w-3.5" />
+                Eliminar
               </button>
             </div>
           </div>
